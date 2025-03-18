@@ -36,5 +36,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
+# Install overflow engine deps.
+RUN apt-get update && apt-get install -y wget steghide && rm -rf /var/lib/apt/lists/*
+
+# Get the overflow engine
+RUN dpkg --print-architecture | grep -q "amd64" && export ARCH="amd64" || export ARCH="arm64" && wget https://github.com/CSSE6400/CoughOverflow-Engine/releases/download/v1.0/overflowengine-${ARCH} -O overflowengine && chmod +x overflowengine
+
 
 CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8080", "src/cough_overflow/main.py"]
