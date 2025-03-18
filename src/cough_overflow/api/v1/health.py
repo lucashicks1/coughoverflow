@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from cough_overflow.health.models import HealthItem, HealthModel
+from cough_overflow.models import HealthItem, HealthModel
 
 r = router = APIRouter()
 

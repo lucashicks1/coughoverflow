@@ -1,15 +1,8 @@
 """Main App."""
 
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 
-from cough_overflow.health.routes import router as health_router
-
-base = APIRouter(prefix="/api/v1")
-base.include_router(health_router, prefix="/health")
-
-
-# Include other routers here
-
+from cough_overflow.api import v1
 
 app = FastAPI()
-app.include_router(base)
+app.include_router(v1.router, prefix="/api/v1")
