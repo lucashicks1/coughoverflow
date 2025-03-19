@@ -2,7 +2,7 @@ name: Functionality Tests
 on:
   # workflow_dispatch:
   schedule:
-    - cron: "* 2 * * *"
+    - cron: "0 2 * * *"
 permissions:
   checks: write
   actions: read
