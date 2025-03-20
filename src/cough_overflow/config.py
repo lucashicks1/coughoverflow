@@ -8,6 +8,7 @@ class GeneralSettings(BaseSettings):
     """General app settings."""
 
     db_url: str = Field()
+    redis_url: str = Field()
 
 
 CONFIG = GeneralSettings()  # type: ignore[call-arg]

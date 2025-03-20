@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "Cloud Functionality Assignment for CSSE6400"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["fastapi[standard]>=0.115.11", "pydantic-settings>=2.8.1"]
+dependencies = [
+    "fastapi[standard]>=0.115.11",
+    "loguru>=0.7.3",
+    "pydantic-settings>=2.8.1",
+    "rq>=2.1.0",
+]
 
 
 [tool.ruff]
