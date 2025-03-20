@@ -67,3 +67,4 @@ labs.csv
 .mypy
 .ruff_cache
 .venv
+redis
