@@ -70,7 +70,7 @@ async def create_analysis(  # noqa: PLR0913
         id=request_id,
         lab_id=lab_id,
         patient_id=patient_id,
-        result=AnalysisStatus.PENDING,
+        result=AnalysisStatus.pending,
         urgent=urgent,
     )
     db.add(analysis_entry)

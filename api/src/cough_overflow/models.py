@@ -49,7 +49,7 @@ class InitialAnalysisResult(CoughOverflowBase):
     id: UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
-    status: AnalysisStatus = AnalysisStatus.PENDING
+    status: AnalysisStatus = AnalysisStatus.pending
 
 
 NUM_B_IN_KB = 1024

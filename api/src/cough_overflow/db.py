@@ -40,7 +40,7 @@ class AnalysisDBModel(BaseDBModel):
     urgent: Mapped[bool]
     updated_at: Mapped[datetime.datetime] = mapped_column(
         server_default=func.now(),
-        onupdate=func.now(),
+        server_onupdate=func.now(),
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
         server_default=func.now(),

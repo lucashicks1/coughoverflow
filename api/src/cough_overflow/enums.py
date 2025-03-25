@@ -10,11 +10,11 @@ class CoughOverflowEnum(str, Enum):
 class AnalysisStatus(CoughOverflowEnum):
     """Enum for the different status' of an analysis result."""
 
-    PENDING = "pending"
-    COVID = "covid"
-    H5N1 = "h5n1"
-    HEALTHY = "healthy"
-    FAILED = "failed"
+    pending = "pending"
+    covid = "covid"
+    h5n1 = "h5n1"
+    healthy = "healthy"
+    failed = "failed"
 
 
 LAB_IDENTIFIERS = [
