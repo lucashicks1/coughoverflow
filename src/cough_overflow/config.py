@@ -11,7 +11,8 @@ class GeneralSettings(BaseSettings):
 
     db_url: str = Field()
     queue_url: str = Field()
-    task_queue: Literal["redis"] = Field()
+    queue_type: Literal["redis"] = Field()
+    queue_name: str = Field(default="queue")
 
 
 CONFIG = GeneralSettings()  # type: ignore[call-arg]

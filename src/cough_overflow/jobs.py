@@ -40,7 +40,7 @@ class TaskQueuer(ABC):
 class RedisTaskQueuer(TaskQueuer):
     """Task queuer implementation for redis."""
 
-    QUEUE_NAME = "queue"
+    QUEUE_NAME = CONFIG.queue_name
 
     _instance: "RedisTaskQueuer | None" = None  # No singleton mixin - abc no like
     _redis: Redis
@@ -70,7 +70,7 @@ class RedisTaskQueuer(TaskQueuer):
 
 def get_queuer() -> TaskQueuer:
     """Get Task Queuer."""
-    option = CONFIG.task_queue
+    option = CONFIG.queue_type
     if option == "redis":
         return RedisTaskQueuer(CONFIG.queue_url)
 
