@@ -4,7 +4,9 @@ import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query
+from sqlalchemy import Select
 
+from cough_overflow.db import AnalysisDBModel, DbSession
 from cough_overflow.enums import AnalysisStatus
 from cough_overflow.models import AnalysisResult
 
@@ -12,8 +14,9 @@ r = router = APIRouter()
 
 
 @r.get("/results")
-async def get_patient_jobs(
-    patient_id: Annotated[str, Query(min_length=11, max_length=11)],
+async def get_patient_jobs(  # noqa: PLR0913
+    db: DbSession,
+    patient_id: Annotated[str, Query(regex=r"^\d{11}$")],  # TODO
     start: datetime.date | None = None,
     end: datetime.date | None = None,
     status: AnalysisStatus | None = None,
@@ -37,3 +40,24 @@ async def get_patient_jobs(
         with the optional filters applied.
     :rtype: list[AnalysisResult]
     """
+    """
+    Status Code: 404 - Patient identifier does not correspond to a known patient.
+    Invalid patient identifiers will also return 404 errors. Return value is not specified but should not leak any internal system data structure information.
+    
+    """
+
+    query: Select = Select(AnalysisDBModel).where(
+        AnalysisDBModel.patient_id == patient_id,  # type: ignore[arg-type]
+    )
+    if start is not None:
+        query = query.where(AnalysisDBModel.created_at > start)
+    if end is not None:
+        query = query.where(AnalysisDBModel.created_at < end)
+    if status is not None:
+        query = query.where(AnalysisDBModel.result == status)  # type: ignore[arg-type]
+    if urgent:
+        query = query.where(AnalysisDBModel.urgent is True)  # type: ignore[arg-type]
+
+    results = await db.execute(query)
+
+    return [result.normalise() for result in results]

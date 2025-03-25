@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, field_validator
 from pydantic_core import PydanticCustomError
 
-from cough_overflow.enums import AnalysisStatus, LabIdentifier
+from cough_overflow.enums import AnalysisStatus
 
 
 class CoughOverflowBase(BaseModel):
@@ -21,7 +21,7 @@ class CoughOverflowBase(BaseModel):
 class AnalysisSummary(CoughOverflowBase):
     """Analysis Summary Model."""
 
-    lab_id: LabIdentifier
+    lab_id: str
     pending: int
     covid: int
     h5n1: int
@@ -35,7 +35,7 @@ class AnalysisResult(CoughOverflowBase):
     """Analysis result Model."""
 
     request_id: UUID
-    lab_id: LabIdentifier
+    lab_id: str
     patient_id: str
     result: AnalysisStatus
     urgent: bool

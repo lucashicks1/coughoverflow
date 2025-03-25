@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
 from cough_overflow.config import CONFIG
+from cough_overflow.enums import AnalysisStatus
 from cough_overflow.models import AnalysisResult
-from cough_overflow.enums import LabIdentifier, AnalysisStatus
 
 
 class BaseDBModel(AsyncAttrs, DeclarativeBase, MappedAsDataclass):
@@ -34,7 +34,7 @@ class AnalysisDBModel(BaseDBModel):
     __tablename__ = "analysis_job"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    lab_id: LabIdentifier
+    lab_id: str
     patient_id: str
     result: AnalysisStatus
     urgent: bool

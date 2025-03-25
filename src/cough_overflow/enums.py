@@ -1,7 +1,6 @@
 """Cough Overflow Enums."""
 
 from enum import Enum
-from typing import Literal
 
 
 class CoughOverflowEnum(str, Enum):
@@ -18,7 +17,7 @@ class AnalysisStatus(CoughOverflowEnum):
     FAILED = "failed"
 
 
-LabIdentifier = Literal[
+LAB_IDENTIFIERS = [
     "4CT24811",
     "4CT41211",
     "4CT41221",
