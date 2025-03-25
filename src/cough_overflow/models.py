@@ -88,6 +88,11 @@ class CreateAnalysisResult(CoughOverflowBase):
 
         return value
 
+    @property
+    def get_raw_image(self) -> bytes:
+        """Decode jpg image to raw image."""
+        return base64.b64decode(self.image)
+
 
 class HealthItem(CoughOverflowBase):
     """Item/Service that is apart of health checks."""

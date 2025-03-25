@@ -2,10 +2,9 @@
 
 import datetime
 from collections.abc import AsyncGenerator
-from typing import Annotated, Any, ClassVar
+from typing import Any, ClassVar
 from uuid import UUID
 
-from fastapi import Depends
 from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
@@ -15,17 +14,18 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.sql import func
 
 from cough_overflow.config import CONFIG
 from cough_overflow.enums import AnalysisStatus
 from cough_overflow.models import AnalysisResult
 
 
-class BaseDBModel(AsyncAttrs, DeclarativeBase, MappedAsDataclass):
+class BaseDBModel(AsyncAttrs, DeclarativeBase):
     """Base model for dbs."""
 
-    __mapper_args__: ClassVar[dict[str, Any]] = {"eager_defaults": True}  # type: ignore[reportIncompatibleVariableOverride]
+    __mapper_args__: ClassVar[dict[str, Any]] = {"eager_defaults": True}  # type: ignore[misc]
 
 
 class AnalysisDBModel(BaseDBModel):
@@ -34,16 +34,16 @@ class AnalysisDBModel(BaseDBModel):
     __tablename__ = "analysis_job"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    lab_id: str
-    patient_id: str
-    result: AnalysisStatus
-    urgent: bool
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        default=lambda: datetime.datetime.now(datetime.UTC),
-    )
+    lab_id: Mapped[str]
+    patient_id: Mapped[str]
+    result: Mapped[AnalysisStatus]
+    urgent: Mapped[bool]
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        default=lambda: datetime.datetime.now(datetime.UTC),
-        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        server_default=func.now(),
     )
 
     def normalise(self) -> AnalysisResult:
@@ -78,7 +78,8 @@ async def initialise_database() -> None:
         logger.success("Initialising database was successful.")
 
 
-async def _get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get Database session."""
     async with session_factory() as session:
         try:
             yield session
@@ -89,6 +90,3 @@ async def _get_session() -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
             await session.close()
             raise
-
-
-DbSession = Annotated[AsyncSession, Depends(_get_session)]

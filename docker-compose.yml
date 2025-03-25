@@ -7,7 +7,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U administrator -d cough_db"]
       interval: 5s
       retries: 5
-      start_period: 30s
+      start_period: 20s
       timeout: 10s
     volumes:
       - db-data:/var/lib/postgresql/data/pgdata
@@ -25,7 +25,8 @@ services:
       - 8080:8080
     environment:
       - DB_URL=postgresql+asyncpg://administrator:verySecretPassword@db:5432/cough_db
-      - REDIS_URL=redis://redis:6379
+      - QUEUE_URL=redis://redis:6379
+      - TASK_QUEUE=redis
     depends_on:
       db:
         condition: service_healthy

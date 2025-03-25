@@ -6,7 +6,8 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import Select
 
-from cough_overflow.db import AnalysisDBModel, DbSession
+from cough_overflow.api.deps import DbSession
+from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import LAB_IDENTIFIERS, AnalysisStatus
 from cough_overflow.models import AnalysisResult
 

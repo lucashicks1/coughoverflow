@@ -1,12 +1,14 @@
 """Analysis Routes."""
 
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 
-from cough_overflow.db import AnalysisDBModel, DbSession
-from cough_overflow.enums import LAB_IDENTIFIERS
+from cough_overflow.api.deps import DbSession, TaskQueuer
+from cough_overflow.db import AnalysisDBModel
+from cough_overflow.enums import LAB_IDENTIFIERS, AnalysisStatus
+from cough_overflow.jobs import AnalysisJob
 from cough_overflow.models import (
     AnalysisResult,
     CreateAnalysisResult,
@@ -35,7 +37,9 @@ async def get_analysis_result(db: DbSession, request_id: UUID) -> AnalysisResult
 
 
 @r.post("", status_code=201)
-async def create_analysis(
+async def create_analysis(  # noqa: PLR0913
+    db: DbSession,
+    task_queuer: TaskQueuer,
     patient_id: Annotated[str, Query(regex=r"^\d{11}$")],
     lab_id: str,
     urgent: bool,
@@ -56,7 +60,34 @@ async def create_analysis(
     """
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(400, {"error": "invalid_lab_id"})
-    # TODO
+    request_id = uuid4()
+
+    job = AnalysisJob(request_id=request_id, raw_image=body.get_raw_image)
+    await task_queuer.queue_task(job)
+
+    # Create in the db
+    analysis_entry = AnalysisDBModel(
+        id=request_id,
+        lab_id=lab_id,
+        patient_id=patient_id,
+        result=AnalysisStatus.PENDING,
+        urgent=urgent,
+    )
+    db.add(analysis_entry)
+    await db.commit()
+    return InitialAnalysisResult(
+        id=request_id,
+        created_at=analysis_entry.created_at,
+        updated_at=analysis_entry.updated_at,
+        status=analysis_entry.result,
+    )
+
+
+@r.get("/test-queue")
+async def test_task_queue(
+    task_queuer: TaskQueuer,
+) -> AnalysisJob | None:
+    return await task_queuer.dequeue_task()
 
 
 @r.put("")
