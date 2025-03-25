@@ -26,7 +26,8 @@ services:
     environment:
       - DB_URL=postgresql+asyncpg://administrator:verySecretPassword@db:5432/cough_db
       - QUEUE_URL=redis://redis:6379
-      - TASK_QUEUE=redis
+      - QUEUE_TYPE=redis
+      - QUEUE_NAME=queue
     depends_on:
       db:
         condition: service_healthy
