@@ -24,10 +24,13 @@ services:
     ports:
       - 8080:8080
     environment:
-      - DB_URL=postgresql://administrator:verySecretPassword@db:5432/cough_db
+      - DB_URL=postgresql+asyncpg://administrator:verySecretPassword@db:5432/cough_db
       - REDIS_URL=redis://redis:6379
     depends_on:
       db:
+        condition: service_healthy
+        restart: true
+      redis:
         condition: service_healthy
         restart: true
   redis:
