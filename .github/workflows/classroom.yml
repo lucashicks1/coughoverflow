@@ -12,84 +12,82 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor != 'github-classroom[bot]'
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-      # Install Docker 
-    - name: Install Docker
-      run: |
-        sudo apt-get update
-        sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-        sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-        sudo apt-get update
-        sudo apt-get install docker-ce
-        sudo usermod -aG docker $USER
-        sudo systemctl enable docker
-        sudo systemctl start docker
-        docker --version
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # Install Python and Poetry
-    - name: Install Python and Poetry
-      run: |
-        sudo apt-get update
-        sudo apt-get install python3 python3-pip
-        pip install poetry
-        poetry --version
+        # Install Docker
+      - name: Install Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+          sudo apt-get update
+          sudo apt-get install docker-ce
+          sudo usermod -aG docker $USER
+          sudo systemctl enable docker
+          sudo systemctl start docker
+          docker --version
 
-      # Run the student's server
-    - name: Add run permission to local.sh
-      run: |
-        chmod +x local.sh
+        # Install Python and Poetry
+      - name: Install Python and Poetry
+        run: |
+          sudo apt-get update
+          sudo apt-get install python3 python3-pip
+          pip install poetry
+          poetry --version
 
-      # Start Server in the Background
-    - name: Start Server
-      run: | 
-        ./local.sh
-      shell: bash
+        # Run the student's server
+      - name: Add run permission to local.sh
+        run: |
+          chmod +x local.sh
 
-    # Wait for Server to be ready
-    - name: Wait for Server
-      run: |
-        echo "Waiting for Flask Server to be ready..."
-        for i in {1..30}; do
-          curl -s http://localhost:8080/api/v1/health && break
-          echo "Server not ready yet. Retrying in 3 seconds..."
-          sleep 3
-        done
-        echo "Server is up!"
+        # Start Server in the Background
+      - name: Start Server
+        run: |
+          ./local.sh
+        shell: bash
 
-    - name: Checkout Test Repository
-      uses: actions/checkout@v4
-      with:
-        repository: 'CSSE6400/coughoverflow-tests'
-        token: '${{ secrets.COUGH_TEST }}'
+      # Wait for Server to be ready
+      - name: Wait for Server
+        run: |
+          echo "Waiting for Flask Server to be ready..."
+          for i in {1..30}; do
+            curl -s http://localhost:8080/api/v1/health && break
+            echo "Server not ready yet. Retrying in 3 seconds..."
+            sleep 3
+          done
+          echo "Server is up!"
 
-    - name: Run Pytest
-      id: run-tests
-      run: |
-        poetry install --no-root
-        poetry run pytest 
+      - name: Checkout Test Repository
+        uses: actions/checkout@v4
+        with:
+          repository: "CSSE6400/coughoverflow-tests"
+          token: "${{ secrets.COUGH_TEST }}"
 
+      - name: Run Pytest
+        id: run-tests
+        run: |
+          poetry install --no-root
+          poetry run pytest
 
-      # Run the Functionality tests
-    # - name: Functionality tests
-    #   id: functionality-tests
-    #   uses: classroom-resources/autograding-python-grader@v1
-    #   with:
-    #     timeout: 5
-    #     max-score: 100
-    #     setup-command: 'pip install requests'
-    # - name: Autograding Reporter
-    #   uses: classroom-resources/autograding-grading-reporter@v1
-    #   env:
-    #     FUNCTIONALITY-TESTS_RESULTS: "${{steps.functionality-tests.outputs.result}}"
-    #   with:
-    #     runners: functionality-tests
+        # Run the Functionality tests
+      - name: Functionality tests
+        id: functionality-tests
+        uses: classroom-resources/autograding-python-grader@v1
+        with:
+          timeout: 5
+          max-score: 100
+          setup-command: "pip install requests"
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          FUNCTIONALITY-TESTS_RESULTS: "${{steps.functionality-tests.outputs.result}}"
+        with:
+          runners: functionality-tests
 
-
-     # Stop Server
-    - name: Stop Server
-      if: always()
-      run: |
-        docker rm -vf $(docker ps -a -q)
+        # Stop Server
+      - name: Stop Server
+        if: always()
+        run: |
+          docker rm -vf $(docker ps -a -q)

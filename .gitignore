@@ -62,3 +62,9 @@ overflowengine
 
 # ignore labs.csv
 labs.csv
+
+# Other things
+.mypy
+.ruff_cache
+.venv
+redis
