@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from cough_overflow.api.deps import DbSession, TaskQueuer
 from cough_overflow.db import AnalysisDBModel
@@ -19,19 +19,31 @@ r = router = APIRouter()
 
 
 @r.get("")
-async def get_analysis_result(db: DbSession, request_id: UUID) -> AnalysisResult:
+async def get_analysis_result(db: DbSession, request: Request) -> AnalysisResult:
     """Return the result or current status of the specified analysis request.
 
-    :param request_id: The analysis request identifier.
-    :type request_id: UUID
+    :param request: The request object
+    :type request: Request
     :return: The specified analysis request
     :rtype: AnalysisResult
     """
-    result = await db.get(AnalysisDBModel, request_id)
+    request_id: str | None = request.query_params.get("request_id", None)
+    if request_id is None:
+        raise HTTPException(404, "request_id not given as a query parameter")
+
+    try:
+        request_uuid: UUID = UUID(request_id)
+    except ValueError as e:
+        raise HTTPException(
+            404,
+            f"request_id is not a valid UUID - '{request_id}'",
+        ) from e
+
+    result = await db.get(AnalysisDBModel, request_uuid)
     if result is None:
         raise HTTPException(
             404,
-            f"Analysis result cannot be found under id '{request_id}'",
+            f"Analysis result cannot be found under id '{request_uuid}'",
         )
     return result.normalise()
 
