@@ -3,10 +3,10 @@
 import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Select
 
-from cough_overflow.api.deps import DbSession
+from cough_overflow.api.deps import DbSession, strict_query_params
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import LAB_IDENTIFIERS, AnalysisStatus
 from cough_overflow.models import AnalysisResult
@@ -17,6 +17,7 @@ r = router = APIRouter()
 @r.get("")
 async def get_labs(
     db: DbSession,
+    _=Depends(strict_query_params),  # noqa: ANN001
 ) -> list[str]:
     """List all labs with permission to use this service.
 
@@ -39,6 +40,7 @@ async def get_lab_jobs(  # noqa: PLR0913
     patient_id: Annotated[str | None, Query(regex=r"^\d{11}$")] = None,
     status: AnalysisStatus | None = None,
     urgent: bool | None = False,  # noqa: FBT002
+    _=Depends(strict_query_params),  # noqa: ANN001
 ) -> list[AnalysisResult]:
     """List all analysis jobs associated with a lab.
 
@@ -102,6 +104,7 @@ async def get_lab_jobs_summary(
     lab_id: str,
     start: datetime.date | None = None,
     end: datetime.date | None = None,
+    _=Depends(strict_query_params),  # noqa: ANN001
 ) -> None:
     """Summary of analysis jobs associated with this lab.
 
@@ -116,6 +119,8 @@ async def get_lab_jobs_summary(
     :return: Summary of the number of analysis jobs submitted
     :rtype: AnalysisSummary
     """
+    # TODO: FIX
+
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(404, "Lab identifier does not correspond to a known lab.")
 

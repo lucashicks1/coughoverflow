@@ -2,11 +2,11 @@
 
 import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import Select
 from sqlalchemy.sql import exists
 
-from cough_overflow.api.deps import DbSession
+from cough_overflow.api.deps import DbSession, strict_query_params
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import MEDICARE_NUM_LEN, AnalysisStatus
 from cough_overflow.models import AnalysisResult
@@ -22,6 +22,7 @@ async def get_patient_jobs(  # noqa: PLR0913
     end: datetime.date | None = None,
     status: AnalysisStatus | None = None,
     urgent: bool | None = False,  # noqa: FBT002
+    _=Depends(strict_query_params),  # noqa: ANN001
 ) -> list[AnalysisResult]:
     """List all analysis jobs associated with a patient.
 
