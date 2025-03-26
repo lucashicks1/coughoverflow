@@ -1,6 +1,6 @@
 name: Functionality Tests (Main Branch)
 on:
-  # workflow_dispatch:
+  workflow_dispatch:
   schedule:
     - cron: "0 2 * * *"
 permissions:
