@@ -4,7 +4,7 @@ services:
     container_name: db
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U administrator -d cough_db"]
+      test: [ "CMD-SHELL", "pg_isready -U administrator -d cough_db" ]
       interval: 5s
       retries: 5
       start_period: 20s
@@ -18,18 +18,6 @@ services:
       - POSTGRES_DB=cough_db
     ports:
       - 5432:5432
-  redis:
-    image: redis:latest
-    # ports: # We dont' want to expose this to the outside world
-    # - 6379:6379
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - ./redis:/redis
-    restart: always
 
   backend:
     build: ./api
@@ -42,23 +30,6 @@ services:
       - QUEUE_NAME=queue
     depends_on:
       db:
-        condition: service_healthy
-        restart: true
-      redis:
-        condition: service_healthy
-        restart: true
-
-  worker:
-    build: ./analysis_worker
-    environment:
-      - DB_URL=postgresql://administrator:verySecretPassword@db:5432/cough_db
-      - QUEUE_URL=redis://redis:6379
-      - QUEUE_NAME=queue
-    depends_on:
-      db:
-        condition: service_healthy
-        restart: true
-      redis:
         condition: service_healthy
         restart: true
 
