@@ -54,9 +54,6 @@ output/
 #ignore the test.jpg
 test.jpg
 
-# ignore lock file
-*.lock
-
 # ignore the engine
 overflowengine
 
