@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 
-from cough_overflow.api.deps import DbSession, TaskQueuer
+from cough_overflow.api.deps import DbSession, EmptyBodyCheck, TaskQueuer
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import (
     LAB_IDENTIFIERS,
@@ -26,7 +26,11 @@ r = router = APIRouter()
 
 
 @r.get("")
-async def get_analysis_result(db: DbSession, request: Request) -> AnalysisResult:
+async def get_analysis_result(
+    db: DbSession,
+    request: Request,
+    _: EmptyBodyCheck,
+) -> AnalysisResult:
     """Return the result or current status of the specified analysis request.
 
     :param request: The request object
@@ -192,6 +196,7 @@ async def create_analysis(  # noqa: C901, PLR0912
 @r.put("")
 async def update_analysis_job(
     db: DbSession,
+    _: EmptyBodyCheck,
     request: Request,
     lab_id: str,
 ) -> AnalysisResult:

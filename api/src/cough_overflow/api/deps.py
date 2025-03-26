@@ -32,3 +32,26 @@ def strict_query_params(request: Request) -> None:
                 400,
                 f"Not allowed param: {requested_param}: {param_value}",
             )
+
+
+QueryParamCheck = Annotated[None, Depends(strict_query_params)]
+
+
+async def strict_no_request_body(request: Request) -> None:
+    """Dependency to enforce no request body."""
+    try:
+        body = await request.body()
+    except Exception as e:
+        raise HTTPException(
+            400,
+            "No request body allowed",
+        ) from e
+
+    if body != b"":
+        raise HTTPException(
+            400,
+            "No request body allowed",
+        )
+
+
+EmptyBodyCheck = Annotated[None, Depends(strict_no_request_body)]

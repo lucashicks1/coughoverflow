@@ -1,15 +1,18 @@
 """Health Routes."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from cough_overflow.api.deps import strict_query_params
+from cough_overflow.api.deps import EmptyBodyCheck, QueryParamCheck
 from cough_overflow.models import HealthItem, HealthModel
 
 r = router = APIRouter()
 
 
 @r.get("")
-async def get_health(_=Depends(strict_query_params)) -> HealthModel:  # noqa: ANN001
+async def get_health(
+    _: QueryParamCheck,
+    __: EmptyBodyCheck,
+) -> HealthModel:
     """Query the health of the service."""
     return HealthModel(
         health_items=[

@@ -3,10 +3,10 @@
 import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import Select
 
-from cough_overflow.api.deps import DbSession, strict_query_params
+from cough_overflow.api.deps import DbSession, EmptyBodyCheck, QueryParamCheck
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import LAB_IDENTIFIERS, AnalysisStatus
 from cough_overflow.models import AnalysisResult
@@ -17,7 +17,8 @@ r = router = APIRouter()
 @r.get("")
 async def get_labs(
     db: DbSession,
-    _=Depends(strict_query_params),  # noqa: ANN001
+    _: QueryParamCheck,
+    __: EmptyBodyCheck,
 ) -> list[str]:
     """List all labs with permission to use this service.
 
@@ -32,6 +33,8 @@ async def get_labs(
 @r.get("/results/{lab_id}")
 async def get_lab_jobs(  # noqa: PLR0913
     db: DbSession,
+    _: QueryParamCheck,
+    __: EmptyBodyCheck,
     lab_id: str,
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -40,7 +43,6 @@ async def get_lab_jobs(  # noqa: PLR0913
     patient_id: Annotated[str | None, Query(regex=r"^\d{11}$")] = None,
     status: AnalysisStatus | None = None,
     urgent: bool | None = False,  # noqa: FBT002
-    _=Depends(strict_query_params),  # noqa: ANN001
 ) -> list[AnalysisResult]:
     """List all analysis jobs associated with a lab.
 
@@ -101,10 +103,11 @@ async def get_lab_jobs(  # noqa: PLR0913
 @r.get("/results/{lab_id}/summary")
 async def get_lab_jobs_summary(
     db: DbSession,
+    _: QueryParamCheck,
+    __: EmptyBodyCheck,
     lab_id: str,
     start: datetime.date | None = None,
     end: datetime.date | None = None,
-    _=Depends(strict_query_params),  # noqa: ANN001
 ) -> None:
     """Summary of analysis jobs associated with this lab.
 
