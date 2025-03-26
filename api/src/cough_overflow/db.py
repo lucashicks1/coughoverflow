@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 from uuid import UUID
 
 from loguru import logger
+from sqlalchemy import DateTime as SQLDatetime
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
@@ -39,10 +40,13 @@ class AnalysisDBModel(BaseDBModel):
     result: Mapped[AnalysisStatus]
     urgent: Mapped[bool]
     updated_at: Mapped[datetime.datetime] = mapped_column(
+        SQLDatetime(timezone=True),
         server_default=func.now(),
         server_onupdate=func.now(),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
+        SQLDatetime(timezone=True),
         server_default=func.now(),
     )
 
