@@ -15,13 +15,17 @@ r = router = APIRouter()
 
 
 @r.get("")
-async def get_labs() -> list[str]:
+async def get_labs(
+    db: DbSession,
+) -> list[str]:
     """List all labs with permission to use this service.
 
     :return: list of lab identifiers for all labs that are allowed to use this service.
     :rtype: list[str]
     """
-    return LAB_IDENTIFIERS
+    stmt: Select = Select(AnalysisDBModel.lab_id).distinct()
+
+    return list((await db.execute(stmt)).scalars().all())
 
 
 @r.get("/results/{lab_id}")
