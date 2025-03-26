@@ -3,13 +3,14 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
 
 from cough_overflow import api
+from cough_overflow.api.deps import strict_query_params
 from cough_overflow.db import initialise_database
 
 
@@ -20,7 +21,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator:
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, dependencies=[Depends(strict_query_params)])
 app.include_router(api.router, prefix="/api/v1")
 
 
