@@ -19,6 +19,12 @@ class AnalysisStatus(CoughOverflowEnum):
 
 MEDICARE_NUM_LEN = 11
 
+
+NUM_B_IN_KB = 1024
+MIN_IMAGE_SIZE = 4 * NUM_B_IN_KB
+MAX_IMAGE_SIZE = 150 * NUM_B_IN_KB
+
+
 LAB_IDENTIFIERS = [
     "4CT24811",
     "4CT41211",

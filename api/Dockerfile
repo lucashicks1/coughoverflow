@@ -1,39 +1,48 @@
 # Base image
-FROM python:3.12-bullseye
+FROM ubuntu:24.04
 
 # Turns off buffering for realtime stdout container logging
 ENV PYTHONUNBUFFERED=1
 # Turns on noisy segfault logs
 ENV PYTHONFAULTHANDLER=1
 
-# Get uv in (Not sure if I like having this bloat though?)
+# Install dependencies
+RUN apt-get update && apt-get install -y wget steghide software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y python3.12 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python3.12 --version
+
+# Get uv
 COPY --from=ghcr.io/astral-sh/uv:0.6.4 /uv /uvx /bin/
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
+# Copy project in
+ADD . app/
 
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
+# Sync the project into a new environment, using the frozen lockfile
+WORKDIR /app
 
-WORKDIR /app/
+# Updated computer architecture selection of the OverflowEngine binary.
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+    wget https://github.com/CSSE6400/CoughOverflow-Engine/releases/download/v1.0/overflowengine-amd64 -O overflowengine; \
+    else \
+    wget https://github.com/CSSE6400/CoughOverflow-Engine/releases/download/v1.0/overflowengine-arm64 -O overflowengine; \
+    fi && \
+    chmod +x overflowengine
 
-# Install the project's dependencies using the lockfile and settings
+
+RUN uv sync --frozen
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PATH="/app/.venv/bin:$PATH"
+
+# Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
-
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
-ADD . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
-
-
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Reset the entrypoint, don't invoke `uv`
-ENTRYPOINT []
 
 CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8080", "src/cough_overflow/main.py"]

@@ -1,21 +1,30 @@
 """Analysis Routes."""
 
-from typing import Annotated
+import base64
+import binascii
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from cough_overflow.api.deps import DbSession, TaskQueuer
 from cough_overflow.db import AnalysisDBModel
-from cough_overflow.enums import LAB_IDENTIFIERS, AnalysisStatus
+from cough_overflow.enums import (
+    LAB_IDENTIFIERS,
+    MAX_IMAGE_SIZE,
+    MEDICARE_NUM_LEN,
+    MIN_IMAGE_SIZE,
+    AnalysisStatus,
+)
+from cough_overflow.errors import AnalysisHTTPException
 from cough_overflow.jobs import AnalysisJob
 from cough_overflow.models import (
     AnalysisResult,
-    CreateAnalysisResult,
     InitialAnalysisResult,
 )
 
 r = router = APIRouter()
+
+VALID_POST_QUERY_PARAMS = set(["patient_id", "lab_id", "urgent"])
 
 
 @r.get("")
@@ -49,33 +58,112 @@ async def get_analysis_result(db: DbSession, request: Request) -> AnalysisResult
 
 
 @r.post("", status_code=201)
-async def create_analysis(  # noqa: PLR0913
+async def create_analysis(
     db: DbSession,
     task_queuer: TaskQueuer,
-    body: CreateAnalysisResult,
-    patient_id: Annotated[str, Query(regex=r"^\d{11}$")],
-    lab_id: str,
-    urgent: bool | None = False,  # noqa: FBT002
+    request: Request,
 ) -> InitialAnalysisResult:
-    """Request analysis of a sample.
+    """Request analysis of a sample."""
+    # Validate the body
+    try:
+        body = await request.json()
+    except Exception as e:
+        raise AnalysisHTTPException(
+            "unknown_error",
+            "Request body is not valid JSON",
+        ) from e
 
-    :param patient_id: Patient identifier - must be an eleven digit Medicare number (11 digits)
-    :type patient_id: str
-    :param lab_id: The lab identifier
-    :type lab_id: str
-    :param urgent: Flag to indicate whether this analysis has higher processing priority than a standard request.
-    :type urgent: bool
-    :param body: Request body containing image to be analysed
-    :type body: CreateAnalysisResult
-    :return: Message saying analysis job has been successfully created
-    :rtype: InitialAnalysisResult
-    """
-    # TODO: FIX
+    if type(body) is not dict:
+        raise AnalysisHTTPException(
+            "unknown_error",
+            "Request body is not an object",
+        )
+
+    # No image field was given
+    if body.pop("image", None) is None:
+        raise AnalysisHTTPException(
+            "no_image",
+            "The 'image' field is missing in the request body",
+        )
+
+    # Request body has more than just 'image' field
+    if body != {}:
+        raise AnalysisHTTPException(
+            "unknown_error",
+            f"Request body has extra fields - {body}",
+        )
+
+    # Validate image
+    try:
+        raw_image = base64.b64decode(body.get("image", ""))
+    except binascii.Error as e:
+        # Invalid image error
+        raise AnalysisHTTPException(
+            "invalid_image",
+            f"Image is not valid base64 - {e}",
+        ) from e
+
+    # Validate image size
+    image_size = len(raw_image)
+    if image_size < MIN_IMAGE_SIZE or image_size > MAX_IMAGE_SIZE:
+        raise AnalysisHTTPException(
+            "image_size",
+            f"Image is not a valid size - {image_size} bytes",
+        )
+
+    query_params = dict(request.query_params)
+
+    # Check if patient_id is missing
+    patient_id = query_params.pop("patient_id", None)
+    if patient_id is None:
+        raise AnalysisHTTPException(
+            "missing_patient_id",
+            "'patient_id' is missing in the query params",
+        )
+
+    # Validate structure of patient_id
+    if len(patient_id) != MEDICARE_NUM_LEN or not patient_id.isnumeric():
+        raise AnalysisHTTPException(
+            "invalid_patient_id",
+            f"'patient_id' is invalid - '{patient_id}'",
+        )
+
+    lab_id = query_params.pop("lab_id", None)
+    if lab_id is None:
+        raise AnalysisHTTPException(
+            "missing_lab_id",
+            "'lab_id' is missing in the query params",
+        )
+
     if lab_id not in LAB_IDENTIFIERS:
-        raise HTTPException(400, {"error": "invalid_lab_id"})
+        raise AnalysisHTTPException(
+            "invalid_lab_id",
+            "'lab_id' is not in the valid list of labs",
+        )
+
+    # Check whether urgent is valid
+    urgent: bool
+    urgent_param = query_params.pop("urgent", None)
+    if urgent_param is None or urgent_param.lower() == "false":
+        urgent = False
+    elif urgent_param.lower() == "true":
+        urgent = True
+    else:
+        raise AnalysisHTTPException(
+            "unknown_error",
+            f"'urgent' param is not a valid boolean - '{urgent_param}'",
+        )
+
+    # Check if extra query params
+    if len(query_params) != 0:
+        raise AnalysisHTTPException(
+            "unknown_error",
+            f"There are extra query params in request - {list(request.query_params.keys())}",
+        )
+
     request_id = uuid4()
 
-    job = AnalysisJob(request_id=request_id, raw_image=body.get_raw_image)
+    job = AnalysisJob(request_id=request_id, raw_image=raw_image)
     await task_queuer.queue_task(job)
 
     # Create in the db
@@ -102,7 +190,6 @@ async def update_analysis_job(
     request: Request,
     lab_id: str,
 ) -> AnalysisResult:
-    # TODO: FIX
     """Change the lab identifier for an analysis job to another lab's identifier.
 
     :param request_id: The identifier of the analysis job that is to be updated.
