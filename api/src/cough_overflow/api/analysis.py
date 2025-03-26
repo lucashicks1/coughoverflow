@@ -70,6 +70,7 @@ async def create_analysis(  # noqa: PLR0913
     :return: Message saying analysis job has been successfully created
     :rtype: InitialAnalysisResult
     """
+    # TODO: FIX
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(400, {"error": "invalid_lab_id"})
     request_id = uuid4()
@@ -95,19 +96,13 @@ async def create_analysis(  # noqa: PLR0913
     )
 
 
-@r.get("/test-queue")
-async def test_task_queue(
-    task_queuer: TaskQueuer,
-) -> AnalysisJob | None:
-    return await task_queuer.dequeue_task()
-
-
 @r.put("")
 async def update_analysis_job(
     db: DbSession,
-    request_id: UUID,
+    request: Request,
     lab_id: str,
 ) -> AnalysisResult:
+    # TODO: FIX
     """Change the lab identifier for an analysis job to another lab's identifier.
 
     :param request_id: The identifier of the analysis job that is to be updated.
@@ -117,14 +112,26 @@ async def update_analysis_job(
     :return: Message saying analysis job has been successfully updated with the new lab identifier.
     :rtype: AnalysisResult
     """
+    request_id: str | None = request.query_params.get("request_id", None)
+    if request_id is None:
+        raise HTTPException(404, "request_id not given as a query parameter")
+
+    try:
+        request_uuid: UUID = UUID(request_id)
+    except ValueError as e:
+        raise HTTPException(
+            404,
+            f"request_id is not a valid UUID - '{request_id}'",
+        ) from e
+
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(400, {"error": "invalid_lab_id"})
 
-    result = await db.get(AnalysisDBModel, request_id)
+    result = await db.get(AnalysisDBModel, request_uuid)
     if result is None:
         raise HTTPException(
             404,
-            f"Analysis result cannot be found under id '{request_id}'",
+            f"Analysis result cannot be found under id '{request_uuid}'",
         )
     result.lab_id = lab_id
     await db.commit()
