@@ -14,22 +14,24 @@ DB_URL = os.environ["DB_URL"]
 # Create DB Connection here
 
 
-async def handle_msg(conn: asyncpg.Connection, request_id: str, raw_image: str) -> None:
+async def handle_msg(
+    conn: asyncpg.Connection, request_id: str, raw_image: bytes
+) -> None:
     input_file = f"{request_id}-input.jpg"
     output_file = f"./{request_id}-output.txt"
 
     # Write to input file
-    async with aiofiles.open(input_file, mode="w") as f:
+    async with aiofiles.open(input_file, mode="wb") as f:
         await f.write(raw_image)
 
     # Call engine
     process = await asyncio.create_subprocess_exec(
-        "./overflowengine", "--input", "images/healthy.jpg", "--output", output_file
+        "./overflowengine", "--input", input_file, "--output", output_file
     )
     stdout, stderr = await process.communicate()
 
-    logger.debug(f"Stdout is {stdout}")
-    logger.debug(f"Stderr is {stderr}")
+    logger.debug(f"Stdout is {stdout!r}")
+    logger.debug(f"Stderr is {stderr!r}")
 
     status_code = process.returncode
 
