@@ -17,6 +17,8 @@ class AnalysisStatus(CoughOverflowEnum):
     failed = "failed"
 
 
+MEDICARE_NUM_LEN = 11
+
 LAB_IDENTIFIERS = [
     "4CT24811",
     "4CT41211",

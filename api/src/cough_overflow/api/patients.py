@@ -1,14 +1,14 @@
 """Patient routes."""
 
 import datetime
-from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import Select
+from sqlalchemy.sql import exists
 
 from cough_overflow.api.deps import DbSession
 from cough_overflow.db import AnalysisDBModel
-from cough_overflow.enums import AnalysisStatus
+from cough_overflow.enums import MEDICARE_NUM_LEN, AnalysisStatus
 from cough_overflow.models import AnalysisResult
 
 r = router = APIRouter()
@@ -17,7 +17,7 @@ r = router = APIRouter()
 @r.get("/results")
 async def get_patient_jobs(  # noqa: PLR0913
     db: DbSession,
-    patient_id: Annotated[str, Query(regex=r"^\d{11}$")],  # TODO
+    patient_id: str,
     start: datetime.date | None = None,
     end: datetime.date | None = None,
     status: AnalysisStatus | None = None,
@@ -41,11 +41,24 @@ async def get_patient_jobs(  # noqa: PLR0913
         with the optional filters applied.
     :rtype: list[AnalysisResult]
     """
-    """
-    Status Code: 404 - Patient identifier does not correspond to a known patient.
-    Invalid patient identifiers will also return 404 errors. Return value is not specified but should not leak any internal system data structure information.
-    
-    """
+    # Validate structure of patient_id
+    if len(patient_id) != MEDICARE_NUM_LEN or not patient_id.isnumeric():
+        raise HTTPException(
+            404,
+            f"patient_id needs to be an 11 character number - '{patient_id}'",
+        )
+
+    exists_stmt: Select = Select(
+        exists().where(AnalysisDBModel.patient_id == patient_id),
+    )
+
+    patient_id_exists = await db.scalar(exists_stmt)
+
+    if not patient_id_exists:
+        raise HTTPException(
+            404,
+            f"patient_id can not be found - '{patient_id}'",
+        )
 
     query: Select = Select(AnalysisDBModel).where(
         AnalysisDBModel.patient_id == patient_id,  # type: ignore[arg-type]
