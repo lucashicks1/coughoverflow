@@ -24,8 +24,6 @@ from cough_overflow.models import (
 
 r = router = APIRouter()
 
-VALID_POST_QUERY_PARAMS = set(["patient_id", "lab_id", "urgent"])
-
 
 @r.get("")
 async def get_analysis_result(db: DbSession, request: Request) -> AnalysisResult:
@@ -36,9 +34,13 @@ async def get_analysis_result(db: DbSession, request: Request) -> AnalysisResult
     :return: The specified analysis request
     :rtype: AnalysisResult
     """
-    request_id: str | None = request.query_params.get("request_id", None)
+    params = dict(request.query_params)
+    request_id: str | None = params.pop("request_id", None)
     if request_id is None:
         raise HTTPException(404, "request_id not given as a query parameter")
+
+    if params != {}:
+        raise HTTPException(400, f"Extras query params given - {list(params.keys())}")
 
     try:
         request_uuid: UUID = UUID(request_id)
@@ -58,7 +60,7 @@ async def get_analysis_result(db: DbSession, request: Request) -> AnalysisResult
 
 
 @r.post("", status_code=201)
-async def create_analysis(
+async def create_analysis(  # noqa: C901, PLR0912
     db: DbSession,
     task_queuer: TaskQueuer,
     request: Request,
@@ -80,7 +82,8 @@ async def create_analysis(
         )
 
     # No image field was given
-    if body.pop("image", None) is None:
+    image = body.pop("image", None)
+    if image is None:
         raise AnalysisHTTPException(
             "no_image",
             "The 'image' field is missing in the request body",
@@ -95,7 +98,7 @@ async def create_analysis(
 
     # Validate image
     try:
-        raw_image = base64.b64decode(body.get("image", ""))
+        raw_image = base64.b64decode(image)
     except binascii.Error as e:
         # Invalid image error
         raise AnalysisHTTPException(
@@ -163,9 +166,6 @@ async def create_analysis(
 
     request_id = uuid4()
 
-    job = AnalysisJob(request_id=request_id, raw_image=raw_image)
-    await task_queuer.queue_task(job)
-
     # Create in the db
     analysis_entry = AnalysisDBModel(
         id=request_id,
@@ -176,6 +176,11 @@ async def create_analysis(
     )
     db.add(analysis_entry)
     await db.commit()
+
+    # Create the job
+    job = AnalysisJob(request_id=request_id, encoded_image=image)
+    await task_queuer.queue_task(job)
+
     return InitialAnalysisResult(
         id=request_id,
         created_at=analysis_entry.created_at,
@@ -199,9 +204,14 @@ async def update_analysis_job(
     :return: Message saying analysis job has been successfully updated with the new lab identifier.
     :rtype: AnalysisResult
     """
-    request_id: str | None = request.query_params.get("request_id", None)
+    params = dict(request.query_params)
+
+    request_id: str | None = params.pop("request_id", None)
     if request_id is None:
         raise HTTPException(404, "request_id not given as a query parameter")
+
+    if params != {}:
+        raise HTTPException(400, f"Extras query params given - {list(params.keys())}")
 
     try:
         request_uuid: UUID = UUID(request_id)

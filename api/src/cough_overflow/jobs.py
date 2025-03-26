@@ -1,20 +1,35 @@
 """Jobs Module."""
 
+import asyncio
+import base64
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from pydantic import Base64Bytes
+import aiofiles
+from loguru import logger
+from redis.asyncio import Redis
 
 from cough_overflow.config import CONFIG
+from cough_overflow.db import (
+    AnalysisDBModel,
+    get_session,
+)
+from cough_overflow.enums import AnalysisStatus
 from cough_overflow.models import CoughOverflowBase
-from redis.asyncio import Redis
+
+ENGINE_OUTPUT_MAP: dict[str, AnalysisStatus] = {
+    "covid-19": AnalysisStatus.covid,
+    "h5n1": AnalysisStatus.h5n1,
+    "healthy": AnalysisStatus.healthy,
+    "failed": AnalysisStatus.failed,
+}
 
 
 class AnalysisJob(CoughOverflowBase):
     """Analysis job to be added to task queue."""
 
     request_id: UUID
-    raw_image: Base64Bytes
+    encoded_image: str
 
 
 class TaskQueuer(ABC):
@@ -35,6 +50,76 @@ class TaskQueuer(ABC):
         :return: Analysis job
         :rtype: AnalysisJob | None
         """
+
+
+class InProcessTaskQueuer(TaskQueuer):
+    """In process task queuer."""
+
+    _tasks: set[asyncio.Task]
+
+    def __init__(self) -> None:
+        """Init."""
+        self._tasks = set()
+
+    async def queue_task(self, job: AnalysisJob) -> None:
+        """Queues task."""
+        self._tasks.add(asyncio.create_task(self.handle_task(job)))
+
+    async def dequeue_task(self) -> AnalysisJob | None:
+        """Dequeues task."""
+        # Note: This doesn't do anything as there is nothing that is dequeuing
+        return None
+
+    @staticmethod
+    async def handle_task(job: AnalysisJob) -> None:
+        """Handle analysis task."""
+        async for session in get_session():
+            analysis = await session.get(AnalysisDBModel, job.request_id)
+            if analysis is None:
+                msg = (
+                    f"Unable to find analysis job under request id - '{job.request_id}'"
+                )
+                raise ValueError(msg)
+            try:
+                input_file = f"{job.request_id}-input.jpg"
+                output_file = f"./{job.request_id}-output.txt"
+
+                image_binary = base64.b64decode(job.encoded_image)
+
+                # Write to input file
+                async with aiofiles.open(input_file, mode="wb") as f:
+                    await f.write(image_binary)
+
+                # Call engine
+                process = await asyncio.create_subprocess_exec(
+                    "./overflowengine",
+                    "--input",
+                    input_file,
+                    "--output",
+                    output_file,
+                )
+                stdout, stderr = await process.communicate()
+
+                logger.debug(f"Stdout is {stdout!r}")
+                logger.debug(f"Stderr is {stderr!r}")
+
+                status_code = process.returncode
+
+                if status_code != 0:
+                    msg = f"Encountered an issue when running overflowengine '{status_code}'"
+                    logger.error(msg)
+                    raise ValueError(msg)  # noqa: TRY301
+
+                async with aiofiles.open(output_file, mode="r") as f:
+                    result = (await f.read()).strip()
+
+                analysis.result = ENGINE_OUTPUT_MAP.get(result, AnalysisStatus.failed)
+                await session.commit()
+
+            except Exception:
+                analysis.result = AnalysisStatus.failed
+                await session.commit()
+                raise
 
 
 class RedisTaskQueuer(TaskQueuer):
@@ -70,6 +155,7 @@ class RedisTaskQueuer(TaskQueuer):
 
 def get_queuer() -> TaskQueuer:
     """Get Task Queuer."""
+    return InProcessTaskQueuer()
     option = CONFIG.queue_type
     if option == "redis":
         return RedisTaskQueuer(CONFIG.queue_url)
