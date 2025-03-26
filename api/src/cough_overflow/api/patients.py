@@ -17,7 +17,7 @@ r = router = APIRouter()
 @r.get("/results")
 async def get_patient_jobs(  # noqa: PLR0913
     db: DbSession,
-    patient_id: str,
+    patient_id: str,  # TODO CHECK IF 404 if missing, or 400 if missing - Ed #82
     start: datetime.date | None = None,
     end: datetime.date | None = None,
     status: AnalysisStatus | None = None,
