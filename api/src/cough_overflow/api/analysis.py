@@ -43,7 +43,7 @@ async def create_analysis(  # noqa: PLR0913
     body: CreateAnalysisResult,
     patient_id: Annotated[str, Query(regex=r"^\d{11}$")],
     lab_id: str,
-    urgent: bool | None = None,
+    urgent: bool | None = False,  # noqa: FBT002
 ) -> InitialAnalysisResult:
     """Request analysis of a sample.
 
@@ -71,7 +71,7 @@ async def create_analysis(  # noqa: PLR0913
         lab_id=lab_id,
         patient_id=patient_id,
         result=AnalysisStatus.pending,
-        urgent=urgent is not None,
+        urgent=urgent,
     )
     db.add(analysis_entry)
     await db.commit()
