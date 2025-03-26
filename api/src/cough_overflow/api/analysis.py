@@ -40,10 +40,10 @@ async def get_analysis_result(db: DbSession, request_id: UUID) -> AnalysisResult
 async def create_analysis(  # noqa: PLR0913
     db: DbSession,
     task_queuer: TaskQueuer,
+    body: CreateAnalysisResult,
     patient_id: Annotated[str, Query(regex=r"^\d{11}$")],
     lab_id: str,
-    urgent: bool,
-    body: CreateAnalysisResult,
+    urgent: bool | None = None,
 ) -> InitialAnalysisResult:
     """Request analysis of a sample.
 
@@ -71,7 +71,7 @@ async def create_analysis(  # noqa: PLR0913
         lab_id=lab_id,
         patient_id=patient_id,
         result=AnalysisStatus.pending,
-        urgent=urgent,
+        urgent=urgent is not None,
     )
     db.add(analysis_entry)
     await db.commit()
