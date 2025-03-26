@@ -34,5 +34,5 @@ async def validation_exception_handler(
     logger.debug(f"Body - '{exc.body}'")
     return JSONResponse(
         status_code=400,
-        content=jsonable_encoder({"detail": exc.errors(), "body": exc.body}),
+        content=jsonable_encoder({"error": exc.errors(), "body": exc.body}),
     )
