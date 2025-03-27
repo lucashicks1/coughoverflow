@@ -1,12 +1,17 @@
 """Labs routes."""
 
-import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import Select
 
-from cough_overflow.api.deps import DbSession, EmptyBodyCheck, QueryParamCheck
+from cough_overflow.api.deps import (
+    DbSession,
+    EmptyBodyCheck,
+    ParseEndDatetime,
+    ParseStartDatetime,
+    QueryParamCheck,
+)
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import LAB_IDENTIFIERS, AnalysisStatus
 from cough_overflow.models import AnalysisResult
@@ -36,10 +41,10 @@ async def get_lab_jobs(  # noqa: PLR0913
     _: QueryParamCheck,
     __: EmptyBodyCheck,
     lab_id: str,
+    start: ParseStartDatetime,
+    end: ParseEndDatetime,
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
-    start: datetime.date | None = None,
-    end: datetime.date | None = None,
     patient_id: Annotated[str | None, Query(regex=r"^\d{11}$")] = None,
     status: AnalysisStatus | None = None,
     urgent: bool | None = False,  # noqa: FBT002
@@ -105,6 +110,9 @@ async def get_lab_jobs_summary(
     db: DbSession,
     request: Request,
     lab_id: str,
+    start: ParseStartDatetime,
+    end: ParseEndDatetime,
+    _: QueryParamCheck,
     __: EmptyBodyCheck,
 ) -> None:
     """Summary of analysis jobs associated with this lab.
@@ -125,31 +133,6 @@ async def get_lab_jobs_summary(
 
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(404, "Lab identifier does not correspond to a known lab.")
-
-    params = dict(request.query_params)
-
-    start_str: str | None = params.pop("start", None)
-    if start_str is not None:
-        try:
-            # TODO: Parse into proper RFC3339 date
-            start = datetime.date.fromisoformat(start_str)
-        except Exception as e:
-            raise HTTPException(400, "Invalid 'start' query param") from e
-    else:
-        start = None
-
-    end_str: str | None = params.pop("end", None)
-    if end_str is not None:
-        try:
-            # TODO: Parse into proper RFC3339 date
-            end = datetime.date.fromisoformat(end_str)
-        except Exception as e:
-            raise HTTPException(400, "Invalid 'end' query param") from e
-    else:
-        end = None
-
-    if params != {}:
-        raise HTTPException(400, f"Extra query params given - {params}")
 
     query: Select = Select(AnalysisDBModel).where(AnalysisDBModel.lab_id == lab_id)  # type: ignore[arg-type]
 

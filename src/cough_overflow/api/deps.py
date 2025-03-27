@@ -1,7 +1,9 @@
 """FastAPI Dependencies."""
 
+import datetime
 from typing import TYPE_CHECKING, Annotated
 
+import pyrfc3339 as rfc3339
 from fastapi import Depends, HTTPException, Request
 
 from cough_overflow.db import AsyncSession, get_session
@@ -55,3 +57,30 @@ async def strict_no_request_body(request: Request) -> None:
 
 
 EmptyBodyCheck = Annotated[None, Depends(strict_no_request_body)]
+
+
+def parse_rfc3339_datetime(dt_str: str) -> datetime.datetime:
+    """Parse an RFC 3339 datetime string into a datetime object."""
+    try:
+        return rfc3339.parse(dt_str)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid RFC 3339 datetime format",
+        ) from e
+
+
+def parse_start_time(start: str | None = None) -> datetime.datetime | None:
+    if start is None:
+        return None
+    return parse_rfc3339_datetime(start)
+
+
+def parse_end_time(end: str | None = None) -> datetime.datetime | None:
+    if end is None:
+        return None
+    return parse_rfc3339_datetime(end)
+
+
+ParseStartDatetime = Annotated[datetime.datetime, Depends(parse_start_time)]
+ParseEndDatetime = Annotated[datetime.datetime, Depends(parse_end_time)]

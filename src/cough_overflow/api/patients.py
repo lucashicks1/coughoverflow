@@ -1,12 +1,16 @@
 """Patient routes."""
 
-import datetime
-
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import Select
 from sqlalchemy.sql import exists
 
-from cough_overflow.api.deps import DbSession, EmptyBodyCheck, QueryParamCheck
+from cough_overflow.api.deps import (
+    DbSession,
+    EmptyBodyCheck,
+    ParseEndDatetime,
+    ParseStartDatetime,
+    QueryParamCheck,
+)
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import MEDICARE_NUM_LEN, AnalysisStatus
 from cough_overflow.models import AnalysisResult
@@ -20,8 +24,8 @@ async def get_patient_jobs(  # noqa: PLR0913
     _: QueryParamCheck,
     __: EmptyBodyCheck,
     patient_id: str,  # Confirmed in Ed #82 - if missing, return 400
-    start: datetime.date | None = None,
-    end: datetime.date | None = None,
+    start: ParseStartDatetime,
+    end: ParseEndDatetime,
     status: AnalysisStatus | None = None,
     urgent: bool | None = False,  # noqa: FBT002
 ) -> list[AnalysisResult]:
