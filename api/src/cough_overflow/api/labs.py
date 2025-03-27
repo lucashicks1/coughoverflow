@@ -3,7 +3,7 @@
 import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import Select
 
 from cough_overflow.api.deps import DbSession, EmptyBodyCheck, QueryParamCheck
@@ -103,11 +103,8 @@ async def get_lab_jobs(  # noqa: PLR0913
 @r.get("/results/{lab_id}/summary")
 async def get_lab_jobs_summary(
     db: DbSession,
-    _: QueryParamCheck,
+    request: Request,
     __: EmptyBodyCheck,
-    lab_id: str,
-    start: datetime.date | None = None,
-    end: datetime.date | None = None,
 ) -> None:
     """Summary of analysis jobs associated with this lab.
 
@@ -122,10 +119,37 @@ async def get_lab_jobs_summary(
     :return: Summary of the number of analysis jobs submitted
     :rtype: AnalysisSummary
     """
-    # TODO: FIX
+    params = dict(request.query_params)
+
+    lab_id: str | None = params.pop("lab_id", None)
+    if lab_id is None:
+        raise HTTPException(404, "request_id is not given as a query param")
 
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(404, "Lab identifier does not correspond to a known lab.")
+
+    start_str: str | None = params.pop("start", None)
+    if start_str is not None:
+        try:
+            # TODO: Parse into proper RFC3339 date
+            start = datetime.date.fromisoformat(start_str)
+        except Exception as e:
+            raise HTTPException(400, "Invalid 'start' query param") from e
+    else:
+        start = None
+
+    end_str: str | None = params.pop("end", None)
+    if end_str is not None:
+        try:
+            # TODO: Parse into proper RFC3339 date
+            end = datetime.date.fromisoformat(end_str)
+        except Exception as e:
+            raise HTTPException(400, "Invalid 'end' query param") from e
+    else:
+        end = None
+
+    if params != {}:
+        raise HTTPException(400, f"Extra query params given - {params}")
 
     query: Select = Select(AnalysisDBModel).where(AnalysisDBModel.lab_id == lab_id)  # type: ignore[arg-type]
 
