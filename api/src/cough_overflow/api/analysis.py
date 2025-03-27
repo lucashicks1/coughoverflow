@@ -198,7 +198,6 @@ async def update_analysis_job(
     db: DbSession,
     _: EmptyBodyCheck,
     request: Request,
-    lab_id: str,
 ) -> AnalysisResult:
     """Change the lab identifier for an analysis job to another lab's identifier.
 
@@ -215,9 +214,6 @@ async def update_analysis_job(
     if request_id is None:
         raise HTTPException(404, "request_id not given as a query parameter")
 
-    if params != {}:
-        raise HTTPException(400, f"Extras query params given - {list(params.keys())}")
-
     try:
         request_uuid: UUID = UUID(request_id)
     except ValueError as e:
@@ -226,8 +222,15 @@ async def update_analysis_job(
             f"request_id is not a valid UUID - '{request_id}'",
         ) from e
 
+    lab_id: str | None = params.pop("lab_id", None)
+    if lab_id is None:
+        raise HTTPException(404, "lab_id not given as a query parameter")
+
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(400, {"error": "invalid_lab_id"})
+
+    if params != {}:
+        raise HTTPException(400, f"Extras query params given - {list(params.keys())}")
 
     result = await db.get(AnalysisDBModel, request_uuid)
     if result is None:
