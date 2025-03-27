@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import Select
 
 from cough_overflow.api.deps import (
@@ -108,7 +108,6 @@ async def get_lab_jobs(  # noqa: PLR0913
 @r.get("/results/{lab_id}/summary")
 async def get_lab_jobs_summary(
     db: DbSession,
-    request: Request,
     lab_id: str,
     start: ParseStartDatetime,
     end: ParseEndDatetime,
