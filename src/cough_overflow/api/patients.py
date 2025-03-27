@@ -19,7 +19,7 @@ async def get_patient_jobs(  # noqa: PLR0913
     db: DbSession,
     _: QueryParamCheck,
     __: EmptyBodyCheck,
-    patient_id: str,  # TODO CHECK IF 404 if missing, or 400 if missing - Ed #82
+    patient_id: str,  # Confirmed in Ed #82 - if missing, return 400
     start: datetime.date | None = None,
     end: datetime.date | None = None,
     status: AnalysisStatus | None = None,
