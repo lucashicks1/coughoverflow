@@ -104,6 +104,7 @@ async def get_lab_jobs(  # noqa: PLR0913
 async def get_lab_jobs_summary(
     db: DbSession,
     request: Request,
+    lab_id: str,
     __: EmptyBodyCheck,
 ) -> None:
     """Summary of analysis jobs associated with this lab.
@@ -119,14 +120,13 @@ async def get_lab_jobs_summary(
     :return: Summary of the number of analysis jobs submitted
     :rtype: AnalysisSummary
     """
-    params = dict(request.query_params)
-
-    lab_id: str | None = params.pop("lab_id", None)
     if lab_id is None:
         raise HTTPException(404, "request_id is not given as a query param")
 
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(404, "Lab identifier does not correspond to a known lab.")
+
+    params = dict(request.query_params)
 
     start_str: str | None = params.pop("start", None)
     if start_str is not None:
