@@ -2,11 +2,12 @@
 
 from typing import Literal
 
-from fastapi import HTTPException
 
-
-class AnalysisHTTPException(HTTPException):
+class AnalysisHTTPError(Exception):
     """Custom HTTP Exception for POST endpoint of cough overflow API."""
+
+    detail: dict
+    status_code: int
 
     def __init__(
         self,
@@ -20,11 +21,19 @@ class AnalysisHTTPException(HTTPException):
             "image_size",
             "unknown_error",
         ],
-        detail: str | None = None,
+        info: str | None = None,
+        status_code: int = 400,
     ) -> None:
         """Create custom exception for cough overflow."""
-        info = {
+        self.detail = {
             "error": error,
-            "detail": detail,
+            "detail": info,
         }
-        super().__init__(400, info)
+        self.status_code = status_code
+
+    def __str__(self) -> str:  # noqa: D105
+        return f"{self.status_code}: {self.detail}"
+
+    def __repr__(self) -> str:  # noqa: D105
+        class_name = self.__class__.__name__
+        return f"{class_name}(status_code={self.status_code!r}, detail={self.detail!r})"

@@ -15,7 +15,7 @@ from cough_overflow.enums import (
     MIN_IMAGE_SIZE,
     AnalysisStatus,
 )
-from cough_overflow.errors import AnalysisHTTPException
+from cough_overflow.errors import AnalysisHTTPError
 from cough_overflow.jobs import AnalysisJob
 from cough_overflow.models import (
     AnalysisResult,
@@ -74,13 +74,13 @@ async def create_analysis(  # noqa: C901, PLR0912
     try:
         body = await request.json()
     except Exception as e:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "unknown_error",
             "Request body is not valid JSON",
         ) from e
 
     if type(body) is not dict:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "unknown_error",
             "Request body is not an object",
         )
@@ -88,14 +88,14 @@ async def create_analysis(  # noqa: C901, PLR0912
     # No image field was given
     image = body.pop("image", None)
     if image is None:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "no_image",
             "The 'image' field is missing in the request body",
         )
 
     # Request body has more than just 'image' field
     if body != {}:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "unknown_error",
             f"Request body has extra fields - {body}",
         )
@@ -105,7 +105,7 @@ async def create_analysis(  # noqa: C901, PLR0912
         raw_image = base64.b64decode(image)
     except binascii.Error as e:
         # Invalid image error
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "invalid_image",
             f"Image is not valid base64 - {e}",
         ) from e
@@ -113,7 +113,7 @@ async def create_analysis(  # noqa: C901, PLR0912
     # Validate image size
     image_size = len(raw_image)
     if image_size < MIN_IMAGE_SIZE or image_size > MAX_IMAGE_SIZE:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "image_size",
             f"Image is not a valid size - {image_size} bytes",
         )
@@ -123,27 +123,27 @@ async def create_analysis(  # noqa: C901, PLR0912
     # Check if patient_id is missing
     patient_id = query_params.pop("patient_id", None)
     if patient_id is None:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "missing_patient_id",
             "'patient_id' is missing in the query params",
         )
 
     # Validate structure of patient_id
     if len(patient_id) != MEDICARE_NUM_LEN or not patient_id.isnumeric():
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "invalid_patient_id",
             f"'patient_id' is invalid - '{patient_id}'",
         )
 
     lab_id = query_params.pop("lab_id", None)
     if lab_id is None:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "missing_lab_id",
             "'lab_id' is missing in the query params",
         )
 
     if lab_id not in LAB_IDENTIFIERS:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "invalid_lab_id",
             "'lab_id' is not in the valid list of labs",
         )
@@ -156,14 +156,14 @@ async def create_analysis(  # noqa: C901, PLR0912
     elif urgent_param.lower() == "true":
         urgent = True
     else:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "unknown_error",
             f"'urgent' param is not a valid boolean - '{urgent_param}'",
         )
 
     # Check if extra query params
     if len(query_params) != 0:
-        raise AnalysisHTTPException(
+        raise AnalysisHTTPError(
             "unknown_error",
             f"There are extra query params in request - {list(request.query_params.keys())}",
         )

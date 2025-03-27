@@ -11,6 +11,7 @@ from loguru import logger
 
 from cough_overflow import api
 from cough_overflow.db import initialise_database
+from cough_overflow.errors import AnalysisHTTPError
 
 
 @asynccontextmanager
@@ -35,4 +36,16 @@ async def validation_exception_handler(
     return JSONResponse(
         status_code=400,
         content=jsonable_encoder({"error": exc.errors(), "body": exc.body}),
+    )
+
+
+@app.exception_handler(AnalysisHTTPError)
+async def custom_http_exception_handler(
+    _: Request,
+    exc: AnalysisHTTPError,
+) -> JSONResponse:
+    """Handle the custom exceptions."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=jsonable_encoder(exc.detail),
     )
