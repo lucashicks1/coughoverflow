@@ -1,9 +1,11 @@
 """Labs routes."""
 
+import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import Select
+from loguru import logger
+from sqlalchemy import Select, func
 
 from cough_overflow.api.deps import (
     DbSession,
@@ -14,7 +16,7 @@ from cough_overflow.api.deps import (
 )
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import LAB_IDENTIFIERS, AnalysisStatus
-from cough_overflow.models import AnalysisResult
+from cough_overflow.models import AnalysisResult, AnalysisSummary
 
 r = router = APIRouter()
 
@@ -113,7 +115,7 @@ async def get_lab_jobs_summary(
     end: ParseEndDatetime,
     _: QueryParamCheck,
     __: EmptyBodyCheck,
-) -> None:
+) -> AnalysisSummary:
     """Summary of analysis jobs associated with this lab.
 
     :param lab_id: The lab identifier
@@ -133,11 +135,58 @@ async def get_lab_jobs_summary(
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(404, "Lab identifier does not correspond to a known lab.")
 
-    query: Select = Select(AnalysisDBModel).where(AnalysisDBModel.lab_id == lab_id)  # type: ignore[arg-type]
+    query: Select = Select(
+        func.count()
+        .filter(AnalysisDBModel.result == AnalysisStatus.pending)
+        .label(AnalysisStatus.pending),
+        func.count()
+        .filter(AnalysisDBModel.result == AnalysisStatus.covid)
+        .label(AnalysisStatus.covid),
+        func.count()
+        .filter(AnalysisDBModel.result == AnalysisStatus.h5n1)
+        .label(AnalysisStatus.h5n1),
+        func.count()
+        .filter(AnalysisDBModel.result == AnalysisStatus.healthy)
+        .label(AnalysisStatus.healthy),
+        func.count()
+        .filter(AnalysisDBModel.result == AnalysisStatus.failed)
+        .label(AnalysisStatus.failed),
+        func.count()
+        .filter(AnalysisDBModel.urgent.is_(True))
+        .label("urgent"),  # Need the is_ otherwise mypy complains
+        func.now().label("generated_at"),
+    ).where(
+        AnalysisDBModel.lab_id == lab_id,
+    )  # type: ignore[arg-type]
 
     if start is not None:
         query = query.where(AnalysisDBModel.created_at > start)
     if end is not None:
         query = query.where(AnalysisDBModel.created_at < end)
 
-    # TODO
+    result = (await db.execute(query)).fetchone()
+    if result is None:
+        msg = f"Generating stats for lab '{lab_id}' returned None"
+        logger.error(msg)
+        # Returning 0'd summary
+        return AnalysisSummary(
+            lab_id=lab_id,
+            pending=0,
+            covid=0,
+            h5n1=0,
+            healthy=0,
+            failed=0,
+            urgent=0,
+            generated_at=datetime.datetime.now(tz=datetime.UTC),
+        )
+
+    return AnalysisSummary(
+        lab_id=lab_id,
+        pending=result.pending,
+        covid=result.covid,
+        h5n1=result.h5n1,
+        healthy=result.healthy,
+        failed=result.failed,
+        urgent=result.urgent,
+        generated_at=result.generated_at,
+    )
