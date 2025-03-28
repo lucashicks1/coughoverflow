@@ -16,6 +16,7 @@ dependencies = [
     "rq>=2.1.0",
     "sqlalchemy[asyncio]>=2.0.39",
     "types-aiofiles>=24.1.0.20250326",
+    "types-pyrfc3339>=2.0.1.20241107",
 ]
 
 

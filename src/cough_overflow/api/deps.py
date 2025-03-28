@@ -71,12 +71,14 @@ def parse_rfc3339_datetime(dt_str: str) -> datetime.datetime:
 
 
 def parse_start_time(start: str | None = None) -> datetime.datetime | None:
+    """Dependency to parse start time in endpoints."""
     if start is None:
         return None
     return parse_rfc3339_datetime(start)
 
 
 def parse_end_time(end: str | None = None) -> datetime.datetime | None:
+    """Dependency to parse end time in endpoints."""
     if end is None:
         return None
     return parse_rfc3339_datetime(end)
