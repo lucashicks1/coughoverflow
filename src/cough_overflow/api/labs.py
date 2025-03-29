@@ -177,7 +177,9 @@ async def get_lab_jobs_summary(
             healthy=0,
             failed=0,
             urgent=0,
-            generated_at=datetime.datetime.now(tz=datetime.UTC),
+            generated_at=datetime.datetime.now(tz=datetime.UTC).strftime(
+                "%Y-%m-%dT%H:%M:%SZ",
+            ),
         )
 
     return AnalysisSummary(
@@ -188,5 +190,7 @@ async def get_lab_jobs_summary(
         healthy=result.healthy,
         failed=result.failed,
         urgent=result.urgent,
-        generated_at=result.generated_at,
+        generated_at=result.generated_at.strftime(
+            "%Y-%m-%dT%H:%M:%SZ",
+        ),
     )

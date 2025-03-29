@@ -25,7 +25,7 @@ class AnalysisSummary(CoughOverflowBase):
     healthy: int
     failed: int
     urgent: int
-    generated_at: datetime.datetime
+    generated_at: str
 
 
 class AnalysisResult(CoughOverflowBase):
