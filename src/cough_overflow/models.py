@@ -1,6 +1,7 @@
 """Base Models."""
 
 import datetime
+from typing import ClassVar
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -8,11 +9,19 @@ from pydantic import BaseModel
 from cough_overflow.enums import AnalysisStatus
 
 
+def _serialize_datetime(v: datetime.datetime) -> str:
+    return v.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 class CoughOverflowBase(BaseModel):
     """Base Pydantic Model."""
 
     class Config:
         """Pydantic config."""
+
+        json_encoders: ClassVar = {
+            datetime.datetime: _serialize_datetime,
+        }
 
 
 class AnalysisSummary(CoughOverflowBase):
@@ -25,7 +34,7 @@ class AnalysisSummary(CoughOverflowBase):
     healthy: int
     failed: int
     urgent: int
-    generated_at: str
+    generated_at: datetime.datetime
 
 
 class AnalysisResult(CoughOverflowBase):
