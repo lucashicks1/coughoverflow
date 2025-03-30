@@ -20,7 +20,7 @@ class AnalysisStatus(CoughOverflowEnum):
 MEDICARE_NUM_LEN = 11
 
 
-NUM_B_IN_KB = 1024
+NUM_B_IN_KB = 1000
 MIN_IMAGE_SIZE = 4 * NUM_B_IN_KB
 MAX_IMAGE_SIZE = 150 * NUM_B_IN_KB
 
