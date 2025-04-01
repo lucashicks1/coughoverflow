@@ -3,9 +3,9 @@
 import asyncio
 import base64
 from abc import ABC, abstractmethod
+from pathlib import Path
 from uuid import UUID
 
-import aiofiles
 from loguru import logger
 from redis.asyncio import Redis
 
@@ -73,6 +73,15 @@ class InProcessTaskQueuer(TaskQueuer):
     @staticmethod
     async def handle_task(job: AnalysisJob) -> None:
         """Handle analysis task."""
+
+        def write_input_file(filepath: str, data: bytes) -> None:
+            with Path(filepath).open("wb") as f:
+                f.write(data)
+
+        def read_output_file(filepath: str) -> str:
+            with Path(filepath).open("r") as f:
+                return f.read().strip()
+
         async for session in get_session():
             analysis = await session.get(AnalysisDBModel, job.request_id)
             if analysis is None:
@@ -81,22 +90,23 @@ class InProcessTaskQueuer(TaskQueuer):
                 )
                 raise ValueError(msg)
             try:
-                input_file = f"{job.request_id}-input.jpg"
-                output_file = f"./{job.request_id}-output.txt"
+
+                input_file_path = f"{job.request_id}-input.jpg"
+                output_file_path = f"./{job.request_id}-output.txt"
 
                 image_binary = base64.b64decode(job.encoded_image)
 
                 # Write to input file
-                async with aiofiles.open(input_file, mode="wb") as f:
-                    await f.write(image_binary)
+                with Path(input_file_path).open("wb") as f:
+                    f.write(image_binary)
 
                 # Call engine
                 process = await asyncio.create_subprocess_exec(
                     "./overflowengine",
                     "--input",
-                    input_file,
+                    input_file_path,
                     "--output",
-                    output_file,
+                    output_file_path,
                 )
                 stdout, stderr = await process.communicate()
 
@@ -110,8 +120,10 @@ class InProcessTaskQueuer(TaskQueuer):
                     logger.error(msg)
                     raise ValueError(msg)  # noqa: TRY301
 
-                async with aiofiles.open(output_file, mode="r") as f:
-                    result = (await f.read()).strip()
+                with Path(output_file_path).open("r") as f:
+                    result = f.read().strip()
+
+                logger.debug(type(result))
 
                 analysis.result = ENGINE_OUTPUT_MAP.get(result, AnalysisStatus.failed)
                 await session.commit()
