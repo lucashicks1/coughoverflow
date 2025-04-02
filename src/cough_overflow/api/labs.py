@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from sqlalchemy import Select, func
+from sqlalchemy.sql import exists
 
 from cough_overflow.api.deps import (
     DbSession,
@@ -77,6 +78,18 @@ async def get_lab_jobs(  # noqa: PLR0913
     """
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(404, "Lab identifier does not correspond to a known lab.")
+
+    exists_stmt: Select = Select(
+        exists().where(AnalysisDBModel.lab_id == lab_id),
+    )
+
+    lab_id_exists = await db.scalar(exists_stmt)
+
+    if not lab_id_exists:
+        raise HTTPException(
+            404,
+            f"lab_id does not have any results - '{lab_id}'",
+        )
 
     query: Select = (
         Select(AnalysisDBModel)
