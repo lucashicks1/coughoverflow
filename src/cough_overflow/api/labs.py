@@ -148,6 +148,18 @@ async def get_lab_jobs_summary(
     if lab_id not in LAB_IDENTIFIERS:
         raise HTTPException(404, "Lab identifier does not correspond to a known lab.")
 
+    exists_stmt: Select = Select(
+        exists().where(AnalysisDBModel.lab_id == lab_id),
+    )
+
+    lab_id_exists = await db.scalar(exists_stmt)
+
+    if not lab_id_exists:
+        raise HTTPException(
+            404,
+            f"lab_id does not have any results - '{lab_id}'",
+        )
+
     query: Select = Select(
         func.count()
         .filter(AnalysisDBModel.result == AnalysisStatus.pending)
