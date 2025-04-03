@@ -177,6 +177,7 @@ async def create_analysis(  # noqa: C901, PLR0912
         patient_id=patient_id,
         result=AnalysisStatus.pending,
         urgent=urgent,
+        encoded_image=image,
     )
     db.add(analysis_entry)
     await db.commit()

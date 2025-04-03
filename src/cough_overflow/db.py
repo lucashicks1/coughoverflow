@@ -39,6 +39,7 @@ class AnalysisDBModel(BaseDBModel):
     patient_id: Mapped[str]
     result: Mapped[AnalysisStatus]
     urgent: Mapped[bool]
+    encoded_image: Mapped[str]
     updated_at: Mapped[datetime.datetime] = mapped_column(
         SQLDatetime(timezone=True),
         server_default=func.now(),
