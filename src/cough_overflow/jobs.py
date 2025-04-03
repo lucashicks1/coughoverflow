@@ -7,9 +7,7 @@ from pathlib import Path
 from uuid import UUID
 
 from loguru import logger
-from redis.asyncio import Redis
 
-from cough_overflow.config import CONFIG
 from cough_overflow.db import (
     AnalysisDBModel,
     get_session,
@@ -43,14 +41,6 @@ class TaskQueuer(ABC):
         :type job: AnalysisJob
         """
 
-    @abstractmethod
-    async def dequeue_task(self) -> AnalysisJob | None:
-        """Abstract method for dequeueing a task.
-
-        :return: Analysis job
-        :rtype: AnalysisJob | None
-        """
-
 
 class InProcessTaskQueuer(TaskQueuer):
     """In process task queuer."""
@@ -65,23 +55,9 @@ class InProcessTaskQueuer(TaskQueuer):
         """Queues task."""
         self._tasks.add(asyncio.create_task(self.handle_task(job)))
 
-    async def dequeue_task(self) -> AnalysisJob | None:
-        """Dequeues task."""
-        # Note: This doesn't do anything as there is nothing that is dequeuing
-        return None
-
     @staticmethod
     async def handle_task(job: AnalysisJob) -> None:
         """Handle analysis task."""
-
-        def write_input_file(filepath: str, data: bytes) -> None:
-            with Path(filepath).open("wb") as f:
-                f.write(data)
-
-        def read_output_file(filepath: str) -> str:
-            with Path(filepath).open("r") as f:
-                return f.read().strip()
-
         async for session in get_session():
             analysis = await session.get(AnalysisDBModel, job.request_id)
             if analysis is None:
@@ -123,8 +99,6 @@ class InProcessTaskQueuer(TaskQueuer):
                 with Path(output_file_path).open("r") as f:
                     result = f.read().strip()
 
-                logger.debug(type(result))
-
                 analysis.result = ENGINE_OUTPUT_MAP.get(result, AnalysisStatus.failed)
                 await session.commit()
 
@@ -134,43 +108,6 @@ class InProcessTaskQueuer(TaskQueuer):
                 raise
 
 
-class RedisTaskQueuer(TaskQueuer):
-    """Task queuer implementation for redis."""
-
-    QUEUE_NAME = CONFIG.queue_name
-
-    _instance: "RedisTaskQueuer | None" = None  # No singleton mixin - abc no like
-    _redis: Redis
-
-    def __init__(self, url: str) -> None:
-        """Create redis task queuer."""
-        self._redis = Redis.from_url(url)
-
-    async def queue_task(self, job: AnalysisJob) -> None:
-        """Queues task."""
-        await self._redis.rpush(self.QUEUE_NAME, job.model_dump_json())  # type: ignore[misc] #thanks aioredis type stubs!!!!!
-
-    async def dequeue_task(self) -> AnalysisJob | None:
-        """Dequeues task."""
-        result: str | None = await self._redis.rpop(self.QUEUE_NAME)  # type: ignore[misc]
-        if result is None:
-            return None
-        return AnalysisJob.model_validate_json(result)
-
-    @classmethod
-    def __call__(cls, *args, **kwargs):  # noqa: ANN002, ANN003, ANN206
-        """Override call dunder method for singleton."""
-        if cls._instance is None:
-            cls._instance = super().__call__(*args, **kwargs)
-        return cls._instance
-
-
 def get_queuer() -> TaskQueuer:
     """Get Task Queuer."""
     return InProcessTaskQueuer()
-    option = CONFIG.queue_type
-    if option == "redis":
-        return RedisTaskQueuer(CONFIG.queue_url)
-
-    msg = f"The task_queue config variable is set to '{option}' which does not correlate to a valid task queuer."
-    raise ValueError(msg)

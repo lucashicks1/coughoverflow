@@ -25,9 +25,6 @@ services:
       - 8080:8080
     environment:
       - DB_URL=postgresql+asyncpg://administrator:verySecretPassword@db:5432/cough_db
-      - QUEUE_URL=redis://redis:6379
-      - QUEUE_TYPE=redis
-      - QUEUE_NAME=queue
     depends_on:
       db:
         condition: service_healthy
