@@ -4,12 +4,15 @@ import datetime
 from typing import ClassVar
 from uuid import UUID
 
+from loguru import logger
 from pydantic import BaseModel
 
 from cough_overflow.enums import AnalysisStatus
 
 
 def _serialize_datetime(v: datetime.datetime) -> str:
+    v = v.astimezone(tz=None)
+    logger.debug(f"Converted datetime to {v.tzname()} timezone")
     return v.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
