@@ -18,7 +18,7 @@ DbSession = Annotated[AsyncSession, Depends(get_session)]
 TaskQueuer = Annotated[TaskQueuerABC, Depends(get_queuer)]
 
 
-# Credit: https://github.com/fastapi/fastapi/issues/2859
+# Credit: https://github.com/fastapi/fastapi/issues/2859 [1]
 def strict_query_params(request: Request) -> None:
     """Dependency to enforce no extra query params."""
     dependant: Dependant = request.scope["route"].dependant
