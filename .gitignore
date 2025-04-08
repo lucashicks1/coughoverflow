@@ -65,3 +65,6 @@ labs.csv
 .ruff_cache
 .venv
 redis
+
+credentials
+api.txt
