@@ -1,28 +1,22 @@
 # Base image
 FROM ubuntu:24.04
 
-# Turns off buffering for realtime stdout container logging
-ENV PYTHONUNBUFFERED=1
-# Turns on noisy segfault logs
-ENV PYTHONFAULTHANDLER=1
 
-# Install dependencies
-RUN apt-get update && apt-get install -y wget steghide software-properties-common && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && \
-    apt-get install -y python3.12 && \
-    rm -rf /var/lib/apt/lists/*
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \ 
+    PYTHONFAULTHANDLER=1 \
+    UV_CACHE_DIR=/root/.cache/uv \
+    PATH="/root/.local/bin:$PATH"
 
-RUN python3.12 --version
 
-# Get uv
-COPY --from=ghcr.io/astral-sh/uv:0.6.4 /uv /uvx /bin/
-
-# Copy project in
-ADD . app/
-
-# Sync the project into a new environment, using the frozen lockfile
-WORKDIR /app
+# Install cough overflow dependencies.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    steghide \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Updated computer architecture selection of the OverflowEngine binary.
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -33,16 +27,19 @@ RUN ARCH=$(dpkg --print-architecture) && \
     fi && \
     chmod +x overflowengine
 
+# Download installer
+ADD https://astral.sh/uv/install.sh /uv-installer.sh
 
+# Run and remove installer
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+
+RUN uv venv --python 3.12.0 .venv
+
+# Sync the project into a new environment
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 
-# Environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONFAULTHANDLER=1 \
-    PATH="/app/.venv/bin:$PATH"
+COPY . .
 
-# Install dependencies
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
-
-CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8080", "src/cough_overflow/main.py"]
+CMD ["uv", "run", "fastapi", "run", "--host", "0.0.0.0", "--port", "8080", "src/cough_overflow/main.py"]
