@@ -32,38 +32,43 @@ resource "aws_ecs_task_definition" "coughoverflow" {
   memory             = 2048
   execution_role_arn = data.aws_iam_role.lab.arn
 
-  container_definitions = <<DEFINITION
-[
-  {
-    "image": "${docker_image.coughoverflow.name}",
-    "cpu": 1024,
-    "memory": 2048,
-    "name": "coughoverflow",
-    "networkMode": "awsvpc",
-    "portMappings": [
-      {
-        "containerPort": 8080,
-        "hostPort": 8080
+  container_definitions = jsonencode([
+    {
+      image       = "${docker_image.coughoverflow.name}",
+      cpu         = 1024,
+      memory      = 2048,
+      name        = "coughoverflow",
+      networkMode = "awsvpc",
+      portMappings = [
+        {
+          containerPort = 8080,
+          hostPort      = 8080
+        }
+      ],
+      environment = [
+        {
+          name  = "DB_URL",
+          value = "postgresql+asyncpg://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}"
+        }
+      ],
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/health || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 10
       }
-    ],
-    "environment": [
-      {
-        "name": "DB_URL",
-        "value": "postgresql+asyncpg://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}"
-      }
-    ],
-    "logConfiguration": {
-      "logDriver": "awslogs",
-      "options": {
-        "awslogs-group": "/coughoverflow/db",
-        "awslogs-region": "us-east-1",
-        "awslogs-stream-prefix": "ecs",
-        "awslogs-create-group": "true"
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          awslogs-group         = "/coughoverflow/db",
+          awslogs-region        = "us-east-1",
+          awslogs-stream-prefix = "ecs",
+          awslogs-create-group  = "true"
+        }
       }
     }
-  }
-]
-DEFINITION
+  ])
 }
 
 resource "aws_security_group" "coughoverflow" {
