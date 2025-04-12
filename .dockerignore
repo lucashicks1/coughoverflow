@@ -1,8 +1,13 @@
 # Git
 .git
+*.log
 .gitignore
 .gitattributes
 .github
+
+# Scripts
+deploy.sh
+local.sh
 
 # Docker
 docker-compose.yml
@@ -47,3 +52,18 @@ deploy.sh
 local.sh
 main.tf
 labs.csv
+
+# Credentials (don't bake into image!)
+credentials
+
+# Terraform files
+*.tf
+terraform.tfstate
+terraform.tfstate.backup
+
+# Docs and misc
+README.md
+api.txt
+refs.md
+labs.csv
+
