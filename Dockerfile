@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
 # Updated computer architecture selection of the OverflowEngine binary.
 RUN ARCH=$(dpkg --print-architecture) && \
     if [ "$ARCH" = "amd64" ]; then \
@@ -36,7 +38,6 @@ RUN sh /uv-installer.sh && rm /uv-installer.sh
 RUN uv venv --python 3.12.0 .venv
 
 # Sync the project into a new environment
-WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 
