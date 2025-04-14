@@ -45,6 +45,6 @@ data "aws_subnets" "private" {
 }
 
 resource "local_file" "url" {
-  content  = "http://${aws_lb.coughoverflow.dns_name}/" # Replace this string with a URL from your Terraform.
+  content  = "http://${aws_lb.coughoverflow.dns_name}/ap1/v1" # Replace this string with a URL from your Terraform.
   filename = "./api.txt"
 }
