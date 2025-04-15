@@ -5,7 +5,6 @@ import base64
 from abc import ABC, abstractmethod
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from aiobotocore.session import AioSession
@@ -21,11 +20,6 @@ from cough_overflow.db import (
 )
 from cough_overflow.enums import AnalysisStatus
 from cough_overflow.models import CoughOverflowBase
-
-if TYPE_CHECKING:
-    from collections.abc import Coroutine
-
-    from types_aiobotocore_sqs.type_defs import GetQueueUrlResultTypeDef
 
 ENGINE_OUTPUT_MAP: dict[str, AnalysisStatus] = {
     "covid-19": AnalysisStatus.covid,
@@ -159,8 +153,8 @@ class SQSTaskQueuer(TaskQueuer):
     async def create(
         cls,
         region: str,
-        queue_name: str,
-        urgent_queue_name: str,
+        main_queue_url: str,
+        urgent_queue_url: str,
     ) -> "SQSTaskQueuer":
         """Create SQS Task Queuer."""
         session = get_aio_session()
@@ -173,31 +167,14 @@ class SQSTaskQueuer(TaskQueuer):
             ),
         )  # type:ignore[func-returns-value]
 
-        try:
-            queue_url_response_coro: Coroutine[Any, Any, GetQueueUrlResultTypeDef] = (
-                client.get_queue_url(
-                    QueueName=queue_name,
-                )
-            )
-            urgent_queue_url_response_coro: Coroutine[
-                Any,
-                Any,
-                GetQueueUrlResultTypeDef,
-            ] = client.get_queue_url(
-                QueueName=urgent_queue_name,
-            )
-            queue_url_response: GetQueueUrlResultTypeDef = await queue_url_response_coro
-            urgent_queue_url_response: GetQueueUrlResultTypeDef = (
-                await urgent_queue_url_response_coro
-            )
-        except client.exceptions.QueueDoesNotExist as e:
-            logger.error(e)
-            raise
-
-        queue_url = queue_url_response["QueueUrl"]
-        urgent_queue_url = urgent_queue_url_response["QueueUrl"]
-
-        return cls(region, queue_url, urgent_queue_url, session, client, exit_stack)
+        return cls(
+            region,
+            main_queue_url,
+            urgent_queue_url,
+            session,
+            client,
+            exit_stack,
+        )
 
     async def queue_task(self, job: AnalysisJob) -> None:
         """Queues task."""
@@ -228,8 +205,8 @@ class TaskQueuerProvider:
                 case "sqs":
                     cls._queuer = await SQSTaskQueuer.create(
                         CONFIG.aws_region,
-                        CONFIG.aws_sqs_name,
-                        CONFIG.aws_sqs_name_urgent,
+                        CONFIG.aws_sqs_url,
+                        CONFIG.aws_sqs_url_urgent,
                     )
                 case "process":
                     cls._queuer = InProcessTaskQueuer()

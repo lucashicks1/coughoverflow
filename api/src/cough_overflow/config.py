@@ -12,8 +12,8 @@ class GeneralSettings(BaseSettings):
     db_url: str = Field()
     queue_type: Literal["sqs", "process"] = Field(default="sqs")
     aws_region: str = Field(default="")
-    aws_sqs_name: str = Field(default="")
-    aws_sqs_name_urgent: str = Field(default="")
+    aws_sqs_url: str = Field(default="")
+    aws_sqs_url_urgent: str = Field(default="")
 
 
 CONFIG = GeneralSettings()  # type: ignore[call-arg]
