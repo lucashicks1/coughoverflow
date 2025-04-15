@@ -1,1 +1,30 @@
+# Ignore the __pycache__ directory
+__pycache__/
+
+# Ignore the .pytest_cache directory
+.pytest_cache/
+
+#ignore the instance folder
+instance/
+
+# ignore the input folder
+input/
+
+# ignore the output folder
+output/
+
+#ignore the test.jpg
+test.jpg
+
+# ignore the engine
+overflowengine
+
+# Other things
+.mypy
+.ruff_cache
+.venv
+
+credentials
+api.txt
+
 .env
