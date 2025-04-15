@@ -183,7 +183,7 @@ async def create_analysis(  # noqa: C901, PLR0912
     await db.commit()
 
     # Create the job
-    job = AnalysisJob(request_id=request_id, encoded_image=image)
+    job = AnalysisJob(request_id=request_id, encoded_image=image, urgent=urgent)
     await task_queuer.queue_task(job)
 
     return InitialAnalysisResult(

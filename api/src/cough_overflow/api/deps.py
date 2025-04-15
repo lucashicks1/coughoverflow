@@ -8,14 +8,14 @@ from fastapi import Depends, HTTPException, Request
 
 from cough_overflow.db import AsyncSession, get_session
 from cough_overflow.jobs import TaskQueuer as TaskQueuerABC
-from cough_overflow.jobs import get_queuer
+from cough_overflow.jobs import TaskQueuerProvider
 
 if TYPE_CHECKING:
     from fastapi.dependencies.models import Dependant
 
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 
-TaskQueuer = Annotated[TaskQueuerABC, Depends(get_queuer)]
+TaskQueuer = Annotated[TaskQueuerABC, Depends(TaskQueuerProvider.get_queuer)]
 
 
 # Credit: https://github.com/fastapi/fastapi/issues/2859 [1]

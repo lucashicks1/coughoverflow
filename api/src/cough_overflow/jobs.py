@@ -3,17 +3,29 @@
 import asyncio
 import base64
 from abc import ABC, abstractmethod
+from contextlib import AsyncExitStack
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from aiobotocore.session import AioSession
+from aiobotocore.session import get_session as get_aio_session
+from botocore.exceptions import ClientError as BotocoreClientError
 from loguru import logger
+from types_aiobotocore_sqs import SQSClient
 
+from cough_overflow.config import CONFIG
 from cough_overflow.db import (
     AnalysisDBModel,
     get_session,
 )
 from cough_overflow.enums import AnalysisStatus
 from cough_overflow.models import CoughOverflowBase
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
+    from types_aiobotocore_sqs.type_defs import GetQueueUrlResultTypeDef
 
 ENGINE_OUTPUT_MAP: dict[str, AnalysisStatus] = {
     "covid-19": AnalysisStatus.covid,
@@ -27,6 +39,7 @@ class AnalysisJob(CoughOverflowBase):
     """Analysis job to be added to task queue."""
 
     request_id: UUID
+    urgent: bool
     encoded_image: str
 
 
@@ -73,7 +86,7 @@ class InProcessTaskQueuer(TaskQueuer):
                 image_binary = base64.b64decode(job.encoded_image)
 
                 # Write to input file
-                with Path(input_file_path).open("wb") as f:
+                with Path(input_file_path).open("wb") as f:  # noqa: ASYNC230
                     f.write(image_binary)
 
                 # Call engine
@@ -96,7 +109,7 @@ class InProcessTaskQueuer(TaskQueuer):
                     logger.error(msg)
                     raise ValueError(msg)  # noqa: TRY301
 
-                with Path(output_file_path).open("r") as f:
+                with Path(output_file_path).open("r") as f:  # noqa: ASYNC230
                     result = f.read().strip()
 
                 analysis.result = ENGINE_OUTPUT_MAP.get(result, AnalysisStatus.failed)
@@ -108,6 +121,116 @@ class InProcessTaskQueuer(TaskQueuer):
                 raise
 
 
-def get_queuer() -> TaskQueuer:
-    """Get Task Queuer."""
-    return InProcessTaskQueuer()
+class SQSTaskQueuer(TaskQueuer):
+    """SQS Task Queuer."""
+
+    _region: str
+    _queue_url: str
+    _urgent_queue_url: str
+
+    _session: AioSession
+    _client: SQSClient
+    _exit_stack: AsyncExitStack
+
+    def __init__(  # noqa: PLR0913
+        self,
+        region: str,
+        queue_url: str,
+        urgent_queue_url: str,
+        session: AioSession,
+        client: SQSClient,
+        exit_stack: AsyncExitStack,
+    ) -> None:
+        """Create task queuer."""
+        self._region = region
+
+        self._queue_url = queue_url
+        self._urgent_queue_url = urgent_queue_url
+
+        self._session = session
+        self._client = client
+        self._exit_stack = exit_stack
+
+    def set_url(self, queue_url: str) -> None:
+        """Set queue url."""
+        self._queue_url = queue_url
+
+    @classmethod
+    async def create(
+        cls,
+        region: str,
+        queue_name: str,
+        urgent_queue_name: str,
+    ) -> "SQSTaskQueuer":
+        """Create SQS Task Queuer."""
+        session = get_aio_session()
+        exit_stack = AsyncExitStack()
+
+        client: SQSClient = await exit_stack.enter_async_context(
+            session.create_client(
+                service_name="sqs",
+                region_name=region,
+            ),
+        )  # type:ignore[func-returns-value]
+
+        try:
+            queue_url_response_coro: Coroutine[Any, Any, GetQueueUrlResultTypeDef] = (
+                client.get_queue_url(
+                    QueueName=queue_name,
+                )
+            )
+            urgent_queue_url_response_coro: Coroutine[
+                Any,
+                Any,
+                GetQueueUrlResultTypeDef,
+            ] = client.get_queue_url(
+                QueueName=urgent_queue_name,
+            )
+            queue_url_response: GetQueueUrlResultTypeDef = await queue_url_response_coro
+            urgent_queue_url_response: GetQueueUrlResultTypeDef = (
+                await urgent_queue_url_response_coro
+            )
+        except client.exceptions.QueueDoesNotExist as e:
+            logger.error(e)
+            raise
+
+        queue_url = queue_url_response["QueueUrl"]
+        urgent_queue_url = urgent_queue_url_response["QueueUrl"]
+
+        return cls(region, queue_url, urgent_queue_url, session, client, exit_stack)
+
+    async def queue_task(self, job: AnalysisJob) -> None:
+        """Queues task."""
+        msg_body = job.model_dump_json()
+
+        queue_url = self._urgent_queue_url if job.urgent else self._queue_url
+
+        try:
+            await self._client.send_message(
+                QueueUrl=queue_url,
+                MessageBody=msg_body,
+            )
+        except BotocoreClientError as e:
+            logger.error(f"Encountered a botocore error: {e}")
+            raise
+
+
+class TaskQueuerProvider:
+    """Task queuer provider."""
+
+    _queuer: TaskQueuer | None = None
+
+    @classmethod
+    async def get_queuer(cls) -> TaskQueuer:
+        """Get Task Queuer."""
+        if cls._queuer is None:
+            match CONFIG.queue_type:
+                case "sqs":
+                    cls._queuer = await SQSTaskQueuer.create(
+                        CONFIG.aws_region,
+                        CONFIG.aws_sqs_name,
+                        CONFIG.aws_sqs_name_urgent,
+                    )
+                case "process":
+                    cls._queuer = InProcessTaskQueuer()
+        return cls._queuer
