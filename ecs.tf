@@ -2,29 +2,28 @@ resource "aws_ecs_cluster" "coughoverflow" {
   name = "coughoverflow"
 }
 
-
-resource "aws_ecs_service" "coughoverflow" {
-  name            = "coughoverflow"
+resource "aws_ecs_service" "coughoverflow_api" {
+  name            = "coughoverflow_api"
   cluster         = aws_ecs_cluster.coughoverflow.id
-  task_definition = aws_ecs_task_definition.coughoverflow.arn
+  task_definition = aws_ecs_task_definition.coughoverflow_api.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
   network_configuration {
     subnets          = data.aws_subnets.private.ids
-    security_groups  = [aws_security_group.coughoverflow.id]
+    security_groups  = [aws_security_group.coughoverflow_api.id]
     assign_public_ip = true
   }
 
   load_balancer {
     target_group_arn = aws_lb_target_group.coughoverflow.arn
-    container_name   = "coughoverflow"
+    container_name   = "coughoverflow_api"
     container_port   = 8080
   }
 }
 
-resource "aws_ecs_task_definition" "coughoverflow" {
-  family                   = "coughoverflow"
+resource "aws_ecs_task_definition" "coughoverflow_api" {
+  family                   = "coughoverflow_api"
   requires_compatibilities = ["FARGATE"]
 
   network_mode       = "awsvpc"
@@ -34,10 +33,10 @@ resource "aws_ecs_task_definition" "coughoverflow" {
 
   container_definitions = jsonencode([
     {
-      image       = "${docker_image.coughoverflow.name}",
+      image       = "${docker_image.coughoverflow_api.name}",
       cpu         = 1024,
       memory      = 2048,
-      name        = "coughoverflow",
+      name        = "coughoverflow_api",
       networkMode = "awsvpc",
       portMappings = [
         {
@@ -49,7 +48,19 @@ resource "aws_ecs_task_definition" "coughoverflow" {
         {
           name  = "DB_URL",
           value = "postgresql+asyncpg://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}"
-        }
+        },
+        {
+          name  = "QUEUE_TYPE",
+          value = "sqs"
+        },
+        {
+          name  = "AWS_SQS_URL",
+          value = "${aws_sqs_queue.coughoverflow_main.url}"
+        },
+        {
+          name  = "AWS_SQS_URL_URGENT",
+          value = "${aws_sqs_queue.coughoverflow_urgent.url}"
+        },
       ],
       healthCheck = {
         command     = ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/health || exit 1"]
@@ -71,9 +82,9 @@ resource "aws_ecs_task_definition" "coughoverflow" {
   ])
 }
 
-resource "aws_security_group" "coughoverflow" {
-  name        = "coughoverflow"
-  description = "CoughOverflow Security Group"
+resource "aws_security_group" "coughoverflow_api" {
+  name        = "coughoverflow_api"
+  description = "CoughOverflow API Security Group"
 
   ingress {
     from_port   = 8080
@@ -98,7 +109,81 @@ resource "aws_security_group" "coughoverflow" {
 
 
   tags = {
-    Name = "coughoverflow_security_group"
+    Name = "coughoverflow_api_security_group"
   }
 
+}
+
+resource "aws_ecs_service" "coughoverflow_worker" {
+  name            = "coughoverflow_worker"
+  cluster         = aws_ecs_cluster.coughoverflow.id
+  task_definition = aws_ecs_task_definition.coughoverflow_worker.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+  iam_role        = data.aws_iam_role.lab.arn
+
+  network_configuration {
+    subnets         = data.aws_subnets.private.ids
+    security_groups = [aws_security_group.coughoverflow_worker.id]
+  }
+}
+
+resource "aws_ecs_task_definition" "coughoverflow_worker" {
+  family                   = "coughoverflow_worker"
+  requires_compatibilities = ["FARGATE"]
+
+  network_mode       = "awsvpc"
+  cpu                = 1024
+  memory             = 2048
+  execution_role_arn = data.aws_iam_role.lab.arn
+
+  container_definitions = jsonencode([
+    {
+      image       = "${docker_image.coughoverflow_worker.name}",
+      cpu         = 1024,
+      memory      = 2048,
+      name        = "coughoverflow_worker",
+      networkMode = "awsvpc",
+      environment = [
+        {
+          name  = "DB_URL",
+          value = "postgresql+asyncpg://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}"
+        },
+        {
+          name  = "AWS_SQS_URL",
+          value = "${aws_sqs_queue.coughoverflow_main.url}"
+        },
+        {
+          name  = "AWS_SQS_URL_URGENT",
+          value = "${aws_sqs_queue.coughoverflow_urgent.url}"
+        }
+      ],
+
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          awslogs-group         = "/coughoverflow/db",
+          awslogs-region        = "us-east-1",
+          awslogs-stream-prefix = "ecs",
+          awslogs-create-group  = "true"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_security_group" "coughoverflow_worker" {
+  name        = "coughoverflow_worker"
+  description = "CoughOverflow Worker Security Group"
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "coughoverflow_worker_security_group"
+  }
 }
