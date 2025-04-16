@@ -80,4 +80,4 @@ async def get_patient_jobs(  # noqa: PLR0913
 
     results = await db.execute(query)
 
-    return [result.normalise() for result in results]
+    return [result.normalise() for result in results.scalars().all()]

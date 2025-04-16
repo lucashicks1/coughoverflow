@@ -117,7 +117,7 @@ async def get_lab_jobs(  # noqa: PLR0913
 
     results = await db.execute(query)
 
-    return [result.normalise() for result in results]
+    return [result.normalise() for result in results.scalars().all()]
 
 
 @r.get("/results/{lab_id}/summary")
