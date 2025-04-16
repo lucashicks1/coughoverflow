@@ -10,6 +10,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "fastapi[standard]>=0.115.11",
     "loguru>=0.7.3",
+    "orjson>=3.10.16",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.8.1",
     "pyrfc3339>=2.0.1",
