@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import ORJSONResponse
 from loguru import logger
 
 from cough_overflow import api
@@ -21,7 +21,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator:
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, default_response_class=ORJSONResponse)
 app.include_router(api.router, prefix="/api/v1")
 
 
@@ -29,11 +29,11 @@ app.include_router(api.router, prefix="/api/v1")
 async def validation_exception_handler(
     _: Request,
     exc: RequestValidationError,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Intercept and transform validation errors."""
     logger.debug(f"Detail - '{exc.errors()}'")
     logger.debug(f"Body - '{exc.body}'")
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=400,
         content=jsonable_encoder({"error": exc.errors(), "body": exc.body}),
     )
@@ -43,9 +43,9 @@ async def validation_exception_handler(
 async def custom_http_exception_handler(
     _: Request,
     exc: AnalysisHTTPError,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Handle the custom exceptions."""
-    return JSONResponse(
+    return ORJSONResponse(
         status_code=exc.status_code,
         content=jsonable_encoder(exc.detail),
     )
