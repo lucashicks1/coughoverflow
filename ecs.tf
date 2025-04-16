@@ -147,7 +147,7 @@ resource "aws_ecs_task_definition" "coughoverflow_worker" {
       environment = [
         {
           name  = "DB_URL",
-          value = "postgresql+asyncpg://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}"
+          value = "postgres://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}?pool_max_conns=10"
         },
         {
           name  = "AWS_SQS_URL",

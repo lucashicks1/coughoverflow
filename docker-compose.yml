@@ -42,7 +42,7 @@ services:
     env_file:
       - .env
     environment:
-      - DB_URL=postgresql+asyncpg://administrator:verySecretPassword@db:5432/cough_db
+      - DB_URL=postgres://administrator:verySecretPassword@db:5432/cough_db?pool_max_conns=10
       - AWS_REGION=us-east-1
       - AWS_SQS_URL=main
       - AWS_SQS_URL_URGENT=main_urgent
