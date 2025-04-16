@@ -1,46 +1,27 @@
-# Base image
-FROM ubuntu:24.04
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
 
-
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \ 
-    PYTHONFAULTHANDLER=1 \
-    UV_CACHE_DIR=/root/.cache/uv \
-    PATH="/root/.local/bin:$PATH"
-
-
-# Install cough overflow dependencies.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    steghide \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --no-dev
 
-# Updated computer architecture selection of the OverflowEngine binary.
-RUN ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-    wget https://github.com/CSSE6400/CoughOverflow-Engine/releases/download/v1.0/overflowengine-amd64 -O overflowengine; \
-    else \
-    wget https://github.com/CSSE6400/CoughOverflow-Engine/releases/download/v1.0/overflowengine-arm64 -O overflowengine; \
-    fi && \
-    chmod +x overflowengine
+ADD . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
-# Download installer
-ADD https://astral.sh/uv/install.sh /uv-installer.sh
 
-# Run and remove installer
-RUN sh /uv-installer.sh && rm /uv-installer.sh
+# Final Image
+FROM python:3.12-slim-bookworm
 
-RUN uv venv --python 3.12.0 .venv
+# Put the app back in
+COPY --from=builder --chown=app:app /app /app
 
-# Sync the project into a new environment
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen
+# Add to path
+ENV PATH="/app/.venv/bin:$PATH"
 
-COPY . .
-
-CMD ["uv", "run", "fastapi", "run", "--host", "0.0.0.0", "--port", "8080", "src/cough_overflow/main.py"]
+CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8080", "/app/src/cough_overflow/main.py"]
