@@ -24,8 +24,10 @@ provider "aws" {
 }
 
 locals {
-  database_username = "administrator"
-  database_password = "VerySecurePassword123XYZ"
+  database_username        = "administrator"
+  database_password        = "VerySecurePassword123XYZ"
+  max_num_messages_relaxed = 50
+  max_num_messages_urgent  = 10
 }
 
 

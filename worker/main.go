@@ -171,10 +171,7 @@ func main() {
 	if !exists {
 		queueURL = "main"
 	}
-	urgentQueueURL, exists := os.LookupEnv("AWS_SQS_NAME_URGENT")
-	if !exists {
-		urgentQueueURL = "main_urgent"
-	}
+
 	var maxMessageNum int32 = 10
 
 	// Load the AWS config
@@ -188,34 +185,19 @@ func main() {
 	for {
 		fmt.Print("Running loop checking for messages.")
 		var messages []types.Message
-		currentQueueURL := urgentQueueURL
+		currentQueueURL := queueURL
 
 		resp, err := client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
-			QueueUrl:            aws.String(urgentQueueURL),
+			QueueUrl:            aws.String(currentQueueURL),
 			MaxNumberOfMessages: maxMessageNum,
 		})
 		if err != nil {
-			log.Printf("Error receiving messages from urgent queue: %v", err)
+			log.Printf("Error receiving messages from the queue: %v", err)
 			continue
 		}
 
 		messages = resp.Messages
 
-		if len(messages) == 0 {
-			currentQueueURL = queueURL
-			resp, err := client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
-				QueueUrl:            aws.String(queueURL),
-				MaxNumberOfMessages: maxMessageNum,
-				WaitTimeSeconds:     5,
-			})
-			if err != nil {
-				log.Printf("Error receiving messages from normal queue: %v", err)
-				continue
-			}
-			messages = resp.Messages
-		}
-
-		// If still no messages, wait a bit
 		if len(messages) == 0 {
 			time.Sleep(2 * time.Second)
 			continue

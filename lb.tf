@@ -2,7 +2,7 @@ resource "aws_lb_target_group" "coughoverflow" {
   name        = "coughoverflow"
   port        = 8080
   protocol    = "HTTP"
-  vpc_id      = aws_security_group.coughoverflow.vpc_id
+  vpc_id      = aws_security_group.coughoverflow_api.vpc_id
   target_type = "ip"
 
   health_check {

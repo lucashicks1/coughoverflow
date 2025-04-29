@@ -55,7 +55,7 @@ resource "aws_ecs_task_definition" "coughoverflow_api" {
         },
         {
           name  = "AWS_SQS_URL",
-          value = "${aws_sqs_queue.coughoverflow_main.url}"
+          value = "${aws_sqs_queue.coughoverflow_relaxed.url}"
         },
         {
           name  = "AWS_SQS_URL_URGENT",
@@ -107,10 +107,26 @@ resource "aws_security_group" "coughoverflow_api" {
 
 }
 
-resource "aws_ecs_service" "coughoverflow_worker" {
-  name            = "coughoverflow_worker"
+resource "aws_security_group" "coughoverflow_worker" {
+  name        = "coughoverflow_worker"
+  description = "CoughOverflow Worker Security Group"
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "coughoverflow_worker_security_group"
+  }
+}
+
+resource "aws_ecs_service" "coughoverflow_worker_relaxed" {
+  name            = "coughoverflow_worker_relaxed"
   cluster         = aws_ecs_cluster.coughoverflow.id
-  task_definition = aws_ecs_task_definition.coughoverflow_worker.arn
+  task_definition = aws_ecs_task_definition.coughoverflow_worker_relaxed.arn
   desired_count   = 1
   launch_type     = "FARGATE"
   iam_role        = data.aws_iam_role.lab.arn
@@ -121,8 +137,8 @@ resource "aws_ecs_service" "coughoverflow_worker" {
   }
 }
 
-resource "aws_ecs_task_definition" "coughoverflow_worker" {
-  family                   = "coughoverflow_worker"
+resource "aws_ecs_task_definition" "coughoverflow_worker_relaxed" {
+  family                   = "coughoverflow_worker_relaxed"
   requires_compatibilities = ["FARGATE"]
 
   network_mode       = "awsvpc"
@@ -144,10 +160,60 @@ resource "aws_ecs_task_definition" "coughoverflow_worker" {
         },
         {
           name  = "AWS_SQS_URL",
-          value = "${aws_sqs_queue.coughoverflow_main.url}"
+          value = "${aws_sqs_queue.coughoverflow_relaxed.url}"
+        }
+      ],
+
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          awslogs-group         = "/coughoverflow/db",
+          awslogs-region        = "us-east-1",
+          awslogs-stream-prefix = "ecs",
+          awslogs-create-group  = "true"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_service" "coughoverflow_worker_urgent" {
+  name            = "coughoverflow_worker_urgent"
+  cluster         = aws_ecs_cluster.coughoverflow.id
+  task_definition = aws_ecs_task_definition.coughoverflow_worker_urgent.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+  iam_role        = data.aws_iam_role.lab.arn
+
+  network_configuration {
+    subnets         = data.aws_subnets.private.ids
+    security_groups = [aws_security_group.coughoverflow_worker.id]
+  }
+}
+
+resource "aws_ecs_task_definition" "coughoverflow_worker_urgent" {
+  family                   = "coughoverflow_worker_urgent"
+  requires_compatibilities = ["FARGATE"]
+
+  network_mode       = "awsvpc"
+  cpu                = 1024
+  memory             = 2048
+  execution_role_arn = data.aws_iam_role.lab.arn
+
+  container_definitions = jsonencode([
+    {
+      image       = "${docker_image.coughoverflow_worker.name}",
+      cpu         = 1024,
+      memory      = 2048,
+      name        = "coughoverflow_worker",
+      networkMode = "awsvpc",
+      environment = [
+        {
+          name  = "DB_URL",
+          value = "postgres://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}?pool_max_conns=10"
         },
         {
-          name  = "AWS_SQS_URL_URGENT",
+          name  = "AWS_SQS_URL",
           value = "${aws_sqs_queue.coughoverflow_urgent.url}"
         }
       ],
@@ -165,18 +231,3 @@ resource "aws_ecs_task_definition" "coughoverflow_worker" {
   ])
 }
 
-resource "aws_security_group" "coughoverflow_worker" {
-  name        = "coughoverflow_worker"
-  description = "CoughOverflow Worker Security Group"
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "coughoverflow_worker_security_group"
-  }
-}
