@@ -8,16 +8,20 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the source code
 COPY . .
 
-# Build the Go application
-RUN CGO_ENABLED=0 GOOS=linux go build
+RUN go build
 
 # Stage 2: Grabbing binary
 FROM ubuntu:24.04 AS coughoverflow
 
-RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates steghide && rm -rf /var/lib/apt/lists/*
+# Install cough overflow engine.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # Download binary 
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -35,7 +39,9 @@ FROM ubuntu:24.04
 # Copy overflowengine
 COPY --from=coughoverflow /overflowengine .
 
-RUN apt-get update && apt-get install -y --no-install-recommends steghide && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    steghide \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from the build stage
 COPY --from=build /app/worker .
