@@ -2,7 +2,7 @@ resource "aws_appautoscaling_target" "coughoverflow_api" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_api.name}"
 
-  max_capacity       = 30 # What is the best way to determine suitable values, without load numbers
+  max_capacity       = 25 # What is the best way to determine suitable values, without load numbers
   min_capacity       = 3
   scalable_dimension = "ecs:service:DesiredCount"
 
@@ -32,7 +32,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_relaxed" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_worker_relaxed.name}"
 
-  max_capacity       = 30 # What is the best way to determine suitable values, without load numbers
+  max_capacity       = 25 # What is the best way to determine suitable values, without load numbers
   min_capacity       = 1
   scalable_dimension = "ecs:service:DesiredCount"
 
@@ -116,7 +116,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_urgent" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_worker_urgent.name}"
 
-  max_capacity       = 30 # What is the best way to determine suitable values, without load numbers
+  max_capacity       = 25 # What is the best way to determine suitable values, without load numbers
   min_capacity       = 1
   scalable_dimension = "ecs:service:DesiredCount"
 
