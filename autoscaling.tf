@@ -2,8 +2,8 @@ resource "aws_appautoscaling_target" "coughoverflow_api" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_api.name}"
 
-  max_capacity       = 100 # What is the best way to determine suitable values, without load numbers
-  min_capacity       = 1
+  max_capacity       = 30 # What is the best way to determine suitable values, without load numbers
+  min_capacity       = 3
   scalable_dimension = "ecs:service:DesiredCount"
 
   depends_on = [aws_ecs_service.coughoverflow_api]
@@ -20,6 +20,11 @@ resource "aws_appautoscaling_policy" "coughoverflow-cpu" {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
     target_value = 20
+
+    # How long to wait before scaling out again
+    scale_out_cooldown = 60
+
+    scale_in_cooldown = 180
   }
 }
 
@@ -27,7 +32,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_relaxed" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_worker_relaxed.name}"
 
-  max_capacity       = 100 # What is the best way to determine suitable values, without load numbers
+  max_capacity       = 30 # What is the best way to determine suitable values, without load numbers
   min_capacity       = 1
   scalable_dimension = "ecs:service:DesiredCount"
 
@@ -45,10 +50,14 @@ resource "aws_appautoscaling_policy" "coughoverflow_worker_relaxed" {
   target_tracking_scaling_policy_configuration {
     target_value = local.max_num_messages_relaxed
 
+    scale_out_cooldown = 60
+
+    scale_in_cooldown = 180
+
     customized_metric_specification {
       metrics {
         label = "Get the queue size (the number of messages waiting to be processed)"
-        id    = "m1"
+        id    = "queue_size"
 
         metric_stat {
           metric {
@@ -69,7 +78,7 @@ resource "aws_appautoscaling_policy" "coughoverflow_worker_relaxed" {
 
       metrics {
         label = "Get the ECS running task count (the number of currently running tasks)"
-        id    = "m2"
+        id    = "num_ecs"
 
         metric_stat {
           metric {
@@ -96,7 +105,7 @@ resource "aws_appautoscaling_policy" "coughoverflow_worker_relaxed" {
       metrics {
         label       = "Calculate the backlog per instance"
         id          = "e1"
-        expression  = "m1 / m2"
+        expression  = "queue_size / num_ecs"
         return_data = true
       }
     }
@@ -107,7 +116,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_urgent" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_worker_urgent.name}"
 
-  max_capacity       = 100 # What is the best way to determine suitable values, without load numbers
+  max_capacity       = 30 # What is the best way to determine suitable values, without load numbers
   min_capacity       = 1
   scalable_dimension = "ecs:service:DesiredCount"
 
@@ -124,6 +133,10 @@ resource "aws_appautoscaling_policy" "coughoverflow_worker_urgent" {
 
   target_tracking_scaling_policy_configuration {
     target_value = local.max_num_messages_urgent
+
+    scale_out_cooldown = 60
+
+    scale_in_cooldown = 180
 
     customized_metric_specification {
       metrics {

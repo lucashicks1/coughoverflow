@@ -1,5 +1,10 @@
 resource "aws_ecs_cluster" "coughoverflow" {
   name = "coughoverflow"
+
+  setting {
+    name = "containerInsights"
+    value = "enabled"
+  }
 }
 
 resource "aws_ecs_service" "coughoverflow_api" {
@@ -30,6 +35,7 @@ resource "aws_ecs_task_definition" "coughoverflow_api" {
   cpu                = 1024
   memory             = 2048
   execution_role_arn = data.aws_iam_role.lab.arn
+  task_role_arn      = data.aws_iam_role.lab.arn
 
   container_definitions = jsonencode([
     {
@@ -65,7 +71,7 @@ resource "aws_ecs_task_definition" "coughoverflow_api" {
       logConfiguration = {
         logDriver = "awslogs",
         options = {
-          awslogs-group         = "/coughoverflow/db",
+          awslogs-group         = "/coughoverflow/api",
           awslogs-region        = "us-east-1",
           awslogs-stream-prefix = "ecs",
           awslogs-create-group  = "true"
@@ -129,11 +135,11 @@ resource "aws_ecs_service" "coughoverflow_worker_relaxed" {
   task_definition = aws_ecs_task_definition.coughoverflow_worker_relaxed.arn
   desired_count   = 1
   launch_type     = "FARGATE"
-  iam_role        = data.aws_iam_role.lab.arn
 
   network_configuration {
-    subnets         = data.aws_subnets.private.ids
-    security_groups = [aws_security_group.coughoverflow_worker.id]
+    subnets          = data.aws_subnets.private.ids
+    security_groups  = [aws_security_group.coughoverflow_worker.id]
+    assign_public_ip = true
   }
 }
 
@@ -145,6 +151,7 @@ resource "aws_ecs_task_definition" "coughoverflow_worker_relaxed" {
   cpu                = 1024
   memory             = 2048
   execution_role_arn = data.aws_iam_role.lab.arn
+  task_role_arn      = data.aws_iam_role.lab.arn
 
   container_definitions = jsonencode([
     {
@@ -167,7 +174,7 @@ resource "aws_ecs_task_definition" "coughoverflow_worker_relaxed" {
       logConfiguration = {
         logDriver = "awslogs",
         options = {
-          awslogs-group         = "/coughoverflow/db",
+          awslogs-group         = "/coughoverflow/worker",
           awslogs-region        = "us-east-1",
           awslogs-stream-prefix = "ecs",
           awslogs-create-group  = "true"
@@ -183,11 +190,11 @@ resource "aws_ecs_service" "coughoverflow_worker_urgent" {
   task_definition = aws_ecs_task_definition.coughoverflow_worker_urgent.arn
   desired_count   = 1
   launch_type     = "FARGATE"
-  iam_role        = data.aws_iam_role.lab.arn
 
   network_configuration {
-    subnets         = data.aws_subnets.private.ids
-    security_groups = [aws_security_group.coughoverflow_worker.id]
+    subnets          = data.aws_subnets.private.ids
+    security_groups  = [aws_security_group.coughoverflow_worker.id]
+    assign_public_ip = true
   }
 }
 
@@ -199,6 +206,7 @@ resource "aws_ecs_task_definition" "coughoverflow_worker_urgent" {
   cpu                = 1024
   memory             = 2048
   execution_role_arn = data.aws_iam_role.lab.arn
+  task_role_arn      = data.aws_iam_role.lab.arn
 
   container_definitions = jsonencode([
     {
@@ -221,7 +229,7 @@ resource "aws_ecs_task_definition" "coughoverflow_worker_urgent" {
       logConfiguration = {
         logDriver = "awslogs",
         options = {
-          awslogs-group         = "/coughoverflow/db",
+          awslogs-group         = "/coughoverflow/worker",
           awslogs-region        = "us-east-1",
           awslogs-stream-prefix = "ecs",
           awslogs-create-group  = "true"

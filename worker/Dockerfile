@@ -39,7 +39,10 @@ FROM ubuntu:24.04
 # Copy overflowengine
 COPY --from=engine /overflowengine .
 
-RUN apt-get update && apt-get install -y --no-install-recommends steghide && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    steghide \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from the build stage
 COPY --from=build /app/worker .
