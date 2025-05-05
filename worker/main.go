@@ -204,9 +204,13 @@ func main() {
 
 		resultChan := make(chan *string, len(messages))
 
+		startTime := time.Now()
 		for _, msg := range messages {
 			go handleMessage(pool, msg, resultChan)
 		}
+		endTime := time.Now()
+
+		fmt.Printf("Handled %v messages in %v\n", len(messages), endTime.Sub(startTime))
 
 		entries := []types.DeleteMessageBatchRequestEntry{}
 		var entry types.DeleteMessageBatchRequestEntry
