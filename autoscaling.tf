@@ -33,7 +33,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_relaxed" {
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_worker_relaxed.name}"
 
   max_capacity       = 25 # What is the best way to determine suitable values, without load numbers
-  min_capacity       = 1
+  min_capacity       = 0
   scalable_dimension = "ecs:service:DesiredCount"
 
   depends_on = [aws_ecs_service.coughoverflow_worker_relaxed]
@@ -41,7 +41,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_relaxed" {
 
 
 resource "aws_appautoscaling_policy" "coughoverflow_worker_relaxed" {
-  name               = "coughoverflow_worker_relaxed"
+  name               = "coughoverflow_worker_relaxed_policy"
   policy_type        = "TargetTrackingScaling"
   resource_id        = aws_appautoscaling_target.coughoverflow_worker_relaxed.resource_id
   scalable_dimension = aws_appautoscaling_target.coughoverflow_worker_relaxed.scalable_dimension
@@ -69,10 +69,8 @@ resource "aws_appautoscaling_policy" "coughoverflow_worker_relaxed" {
               value = aws_sqs_queue.coughoverflow_relaxed.name
             }
           }
-
           stat = "Sum"
         }
-
         return_data = false
       }
 
@@ -117,7 +115,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_urgent" {
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_worker_urgent.name}"
 
   max_capacity       = 25 # What is the best way to determine suitable values, without load numbers
-  min_capacity       = 1
+  min_capacity       = 0
   scalable_dimension = "ecs:service:DesiredCount"
 
   depends_on = [aws_ecs_service.coughoverflow_worker_urgent]
@@ -125,7 +123,7 @@ resource "aws_appautoscaling_target" "coughoverflow_worker_urgent" {
 
 
 resource "aws_appautoscaling_policy" "coughoverflow_worker_urgent" {
-  name               = "coughoverflow_worker_urgent"
+  name               = "coughoverflow_worker_urgent_policy"
   policy_type        = "TargetTrackingScaling"
   resource_id        = aws_appautoscaling_target.coughoverflow_worker_urgent.resource_id
   scalable_dimension = aws_appautoscaling_target.coughoverflow_worker_urgent.scalable_dimension
