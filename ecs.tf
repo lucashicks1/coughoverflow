@@ -32,16 +32,16 @@ resource "aws_ecs_task_definition" "coughoverflow_api" {
   requires_compatibilities = ["FARGATE"]
 
   network_mode       = "awsvpc"
-  cpu                = 1024
-  memory             = 2048
+  cpu                = 4096
+  memory             = 8192
   execution_role_arn = data.aws_iam_role.lab.arn
   task_role_arn      = data.aws_iam_role.lab.arn
 
   container_definitions = jsonencode([
     {
       image       = "${docker_image.coughoverflow_api.name}",
-      cpu         = 1024,
-      memory      = 2048,
+      cpu         = 4096,
+      memory      = 8192,
       name        = "coughoverflow_api",
       networkMode = "awsvpc",
       portMappings = [
