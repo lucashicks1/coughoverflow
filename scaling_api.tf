@@ -2,7 +2,7 @@ resource "aws_appautoscaling_target" "coughoverflow_api" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_api.name}"
 
-  max_capacity       = 25 # What is the best way to determine suitable values, without load numbers
+  max_capacity       = 50
   min_capacity       = 3
   scalable_dimension = "ecs:service:DesiredCount"
 

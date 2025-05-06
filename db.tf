@@ -21,7 +21,7 @@ resource "aws_db_parameter_group" "db_params" {
   family = "postgres17"
   parameter {
     name         = "max_connections"
-    value        = 200 # Set max num connections
+    value        = 400 # Set max num connections
     apply_method = "pending-reboot"
   }
 }

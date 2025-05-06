@@ -1,5 +1,5 @@
 resource "aws_appautoscaling_target" "urgent_ecs_target" {
-  max_capacity       = 25
+  max_capacity       = 50
   min_capacity       = 1
   resource_id        = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_worker_urgent.name}"
   scalable_dimension = "ecs:service:DesiredCount"
