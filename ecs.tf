@@ -2,7 +2,7 @@ resource "aws_ecs_cluster" "coughoverflow" {
   name = "coughoverflow"
 
   setting {
-    name = "containerInsights"
+    name  = "containerInsights"
     value = "enabled"
   }
 }
@@ -11,7 +11,7 @@ resource "aws_ecs_service" "coughoverflow_api" {
   name            = "coughoverflow_api"
   cluster         = aws_ecs_cluster.coughoverflow.id
   task_definition = aws_ecs_task_definition.coughoverflow_api.arn
-  desired_count   = 1
+  desired_count   = 3
   launch_type     = "FARGATE"
 
   network_configuration {
