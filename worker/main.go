@@ -210,8 +210,6 @@ func main() {
 		}
 		endTime := time.Now()
 
-		fmt.Printf("Handled %v messages in %v\n", len(messages), endTime.Sub(startTime))
-
 		entries := []types.DeleteMessageBatchRequestEntry{}
 		var entry types.DeleteMessageBatchRequestEntry
 		for i := 0; i < len(messages); i++ {
@@ -221,6 +219,7 @@ func main() {
 				entries = append(entries, entry)
 			}
 		}
+		fmt.Printf("Handled %v messages in %v\n", len(messages), endTime.Sub(startTime))
 
 		// Delete messages that are done
 		if len(entries) > 0 {
