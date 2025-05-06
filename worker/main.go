@@ -171,7 +171,7 @@ func main() {
 		log.Fatal("The sqs url is not set under 'AWS_SQS_URL' env variable")
 	}
 
-	var maxMessageNum int32 = 10
+	var maxMessageNum int32 = 20
 
 	// Load the AWS config
 	cfg, err := config.LoadDefaultConfig(context.TODO())
