@@ -1,9 +1,9 @@
 """Analysis Routes."""
 
-import base64
 import binascii
 from uuid import UUID, uuid4
 
+import pybase64
 from fastapi import APIRouter, HTTPException, Request
 
 from cough_overflow.api.deps import DbSession, EmptyBodyCheck, TaskQueuer
@@ -102,7 +102,7 @@ async def create_analysis(  # noqa: C901, PLR0912
 
     # Validate image
     try:
-        raw_image = base64.b64decode(image)
+        raw_image = pybase64.b64decode(image)
     except binascii.Error as e:
         # Invalid image error
         raise AnalysisHTTPError(

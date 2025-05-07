@@ -1,12 +1,12 @@
 """Jobs Module."""
 
 import asyncio
-import base64
 from abc import ABC, abstractmethod
 from contextlib import AsyncExitStack
 from pathlib import Path
 from uuid import UUID
 
+import pybase64
 from aiobotocore.session import AioSession
 from aiobotocore.session import get_session as get_aio_session
 from botocore.exceptions import ClientError as BotocoreClientError
@@ -77,7 +77,7 @@ class InProcessTaskQueuer(TaskQueuer):
                 input_file_path = f"{job.request_id}-input.jpg"
                 output_file_path = f"./{job.request_id}-output.txt"
 
-                image_binary = base64.b64decode(job.encoded_image)
+                image_binary = pybase64.b64decode(job.encoded_image)
 
                 # Write to input file
                 with Path(input_file_path).open("wb") as f:  # noqa: ASYNC230

@@ -12,6 +12,7 @@ dependencies = [
     "loguru>=0.7.3",
     "orjson>=3.10.16",
     "psycopg2-binary>=2.9.10",
+    "pybase64>=1.4.1",
     "pydantic-settings>=2.8.1",
     "pyrfc3339>=2.0.1",
     "rq>=2.1.0",
