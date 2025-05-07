@@ -67,6 +67,7 @@ class AnalysisDBModel(BaseDBModel):
 engine: AsyncEngine = create_async_engine(
     CONFIG.db_url,
     pool_pre_ping=True,
+    pool_size=20,
 )
 session_factory = async_sessionmaker(
     engine,
