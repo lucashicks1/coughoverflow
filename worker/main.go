@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,13 @@ type AnalysisMsg struct {
 	EncodedImage string `json:"encoded_image"`
 }
 
+type AnalysisProcessor struct {
+	client   *sqs.Client
+	queueUrl string
+	pool     *pgxpool.Pool
+	jobs     chan types.Message
+}
+
 var engineOutputMap = map[string]string{
 	"covid-19": "covid",
 	"h5n1":     "h5n1",
@@ -32,58 +40,25 @@ var engineOutputMap = map[string]string{
 	"failed":   "failed",
 }
 
-func handleMessage(pool *pgxpool.Pool, msg types.Message, resultChan chan<- *string) {
-	ctx := context.Background()
-
-	// Setup database connection
-	dbConn, err := pool.Acquire(ctx)
+func writeFileBuffered(path string, data []byte) error {
+	f, err := os.Create(path)
 	if err != nil {
-		log.Printf("Failed to acquire connection: %v", err)
-		resultChan <- nil
-		return
+		return err
 	}
-	defer dbConn.Release()
-
-	// Unmarshal message
-	var data AnalysisMsg
-	if err := json.Unmarshal([]byte(*msg.Body), &data); err != nil {
-		log.Printf("Error unmarshalling message (MessageId=%s): %v", *msg.MessageId, err)
-		resultChan <- nil
-		return
-	}
-
-	// Process the image by calling the external engine.
-	finalStatus, err := processImage(data)
-	if err != nil {
-		// If processing fails, update db with "failed"
-		finalStatus = "failed"
-		log.Printf("Processing failed for RequestId=%s", data.RequestId)
-	}
-
-	// Update analysis job with status
-	_, errUpdate := dbConn.Exec(ctx,
-		"UPDATE analysis_job SET result = $1, updated_at = NOW() WHERE id = $2",
-		finalStatus,
-		data.RequestId)
-	if errUpdate != nil {
-		log.Printf("Error updating database to %v for RequestId=%s: %v", finalStatus, data.RequestId, errUpdate)
-		resultChan <- nil
-		return
-	}
-
-	log.Printf("Processing message with id: %s (MessageId=%s)", data.RequestId, *msg.MessageId)
-
-	resultChan <- aws.String(*msg.ReceiptHandle)
+	defer f.Close()
+	_, err = f.Write(data)
+	return err
 }
 
-func processImage(data AnalysisMsg) (string, error) {
+func analyseImage(data AnalysisMsg) (string, error) {
 	log.Printf("Starting image processing for RequestId=%s", data.RequestId)
 
 	// Decode base64
 	decodedImage, err := base64.StdEncoding.DecodeString(data.EncodedImage)
 	if err != nil {
+		// Message should contain valid base64
 		log.Printf("Error decoding base64 image for RequestId=%s: %v", data.RequestId, err)
-		return "", err
+		return "failed", err
 	}
 	log.Printf("Image decoded successfully for RequestId=%s", data.RequestId)
 
@@ -106,9 +81,10 @@ func processImage(data AnalysisMsg) (string, error) {
 	output, err := cmd.CombinedOutput()
 	log.Printf("Overflow engine process completed for RequestId=%s", data.RequestId)
 	log.Printf("Engine output: %s", string(output))
+
 	if err != nil {
 		log.Printf("Overflow engine returned error for RequestId=%s: %v", data.RequestId, err)
-		return "", err
+		return "failed", nil
 	}
 
 	// Read the output file
@@ -122,14 +98,11 @@ func processImage(data AnalysisMsg) (string, error) {
 	log.Printf("Engine returned result for RequestId=%s: %s", data.RequestId, result)
 
 	// Clean up files
-	err = os.Remove(inputFilePath)
-	if err != nil {
-		log.Printf("Warning: unable to remove input file %s: %v", inputFilePath, err)
-	}
-	err = os.Remove(outputFilePath)
-	if err != nil {
-		log.Printf("Warning: unable to remove output file %s: %v", outputFilePath, err)
-	}
+	go func() {
+		_ = os.Remove(inputFilePath)
+		_ = os.Remove(outputFilePath)
+
+	}()
 
 	// Map engine output to final status.
 	finalStatus, ok := engineOutputMap[result]
@@ -141,9 +114,126 @@ func processImage(data AnalysisMsg) (string, error) {
 	return finalStatus, nil
 }
 
+func (ap *AnalysisProcessor) processMessage(msg types.Message) {
+	ctx := context.Background()
+
+	// Unmarshal message
+	var data AnalysisMsg
+	if err := json.Unmarshal([]byte(*msg.Body), &data); err != nil {
+		log.Printf("Error unmarshalling message (MessageId=%s): %v", *msg.MessageId, err)
+		return
+	}
+
+	log.Printf("Processing message with id: %s (MessageId=%s)", data.RequestId, *msg.MessageId)
+
+	// Process the image by calling the external engine.
+	finalStatus, err := analyseImage(data)
+	if err != nil {
+		// If processing fails, redo processing
+		log.Printf("Processing failed for RequestId=%s, returning early forcing reprocess", data.RequestId)
+		return
+	}
+
+	// Setup database connection
+	dbConn, err := ap.pool.Acquire(ctx)
+	if err != nil {
+		log.Printf("Failed to acquire connection: %v", err)
+		return
+	}
+	defer dbConn.Release()
+
+	// Update analysis job with status
+	_, err = dbConn.Exec(ctx,
+		"UPDATE analysis_job SET result = $1, updated_at = NOW() WHERE id = $2",
+		finalStatus,
+		data.RequestId)
+
+	if err != nil {
+		log.Printf("Error updating database to %v for RequestId=%s: %v", finalStatus, data.RequestId, err)
+		return
+	}
+
+	log.Printf("Successfully updated, now deleting message with id: %s (MessageId=%s)", data.RequestId, *msg.MessageId)
+
+	// Delete message
+	dmi := &sqs.DeleteMessageInput{
+		QueueUrl:      &ap.queueUrl,
+		ReceiptHandle: msg.ReceiptHandle,
+	}
+
+	_, err = ap.client.DeleteMessage(
+		ctx,
+		dmi,
+	)
+
+	if err != nil {
+		log.Printf("Failed to delete message with RequestId=%s: %v", finalStatus, data.RequestId, err)
+	}
+
+}
+
+func (ap *AnalysisProcessor) worker(ctx context.Context, id int) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("Worker %d exiting...", id)
+			return
+		case msg := <-ap.jobs:
+			ap.processMessage(msg)
+		}
+	}
+}
+
+func (ap *AnalysisProcessor) startWorkerPool(ctx context.Context, numWorkers int) {
+	for i := 0; i < numWorkers; i++ {
+		go ap.worker(ctx, i)
+	}
+}
+
+func (ap *AnalysisProcessor) pollQueue(ctx context.Context) {
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Stopping queue polling...")
+			return
+		default:
+		}
+
+		fmt.Print("Polling for messages....")
+
+		resp, err := ap.client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
+			QueueUrl:            aws.String(ap.queueUrl),
+			MaxNumberOfMessages: 10,
+			WaitTimeSeconds:     5,
+		})
+		if err != nil {
+			log.Printf("Error receiving messages from the queue: %v", err)
+			continue
+		}
+
+		messages := resp.Messages
+
+		if len(messages) < 1 {
+			log.Printf("Didn't find any messages in the queue, sleeping for a bit...")
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		for _, msg := range resp.Messages {
+			select {
+			case ap.jobs <- msg:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+}
+
 func main() {
 	ctx := context.TODO()
 
+	// Setting up DB
 	dbURL, exists := os.LookupEnv("DB_URL")
 	if !exists {
 		log.Fatal("The database url is not set under 'DB_URL' env variable")
@@ -171,7 +261,15 @@ func main() {
 		log.Fatal("The sqs url is not set under 'AWS_SQS_URL' env variable")
 	}
 
-	var maxMessageNum int32 = 10
+	numWorkersStr, exists := os.LookupEnv("NUM_WORKERS")
+	numWorkers := 30 // Default value
+	if exists {
+		numWorkers, err = strconv.Atoi(numWorkersStr)
+		if err != nil {
+			log.Printf("Invalid NUM_WORKERS value: %s, using default of 30", numWorkersStr)
+			numWorkers = 30
+		}
+	}
 
 	// Load the AWS config
 	cfg, err := config.LoadDefaultConfig(context.TODO())
@@ -179,59 +277,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	client := sqs.NewFromConfig(cfg)
-
-	for {
-		fmt.Print("Running loop checking for messages.")
-		var messages []types.Message
-
-		resp, err := client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
-			QueueUrl:            aws.String(queueURL),
-			MaxNumberOfMessages: maxMessageNum,
-			WaitTimeSeconds:     5,
-		})
-		if err != nil {
-			log.Printf("Error receiving messages from the queue: %v", err)
-			continue
-		}
-
-		messages = resp.Messages
-
-		if len(messages) == 0 {
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		resultChan := make(chan *string, len(messages))
-
-		startTime := time.Now()
-		for _, msg := range messages {
-			go handleMessage(pool, msg, resultChan)
-		}
-		endTime := time.Now()
-
-		entries := []types.DeleteMessageBatchRequestEntry{}
-		var entry types.DeleteMessageBatchRequestEntry
-		for i := 0; i < len(messages); i++ {
-			rh := <-resultChan
-			if rh != nil {
-				entry = types.DeleteMessageBatchRequestEntry{Id: aws.String(fmt.Sprintf("%v", i)), ReceiptHandle: rh}
-				entries = append(entries, entry)
-			}
-		}
-		fmt.Printf("Handled %v messages in %v\n", len(messages), endTime.Sub(startTime))
-
-		// Delete messages that are done
-		if len(entries) > 0 {
-			fmt.Printf("Deleting %v messages", entries)
-			_, err := client.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
-				Entries:  entries,
-				QueueUrl: aws.String(queueURL),
-			})
-			if err != nil {
-				log.Printf("Couldn't delete messages from queue %v. Here's why: %v\n", queueURL, err)
-			}
-		}
-
+	processor := &AnalysisProcessor{
+		client:   sqs.NewFromConfig((cfg)),
+		queueUrl: queueURL,
+		pool:     pool,
+		jobs:     make(chan types.Message, 2*numWorkers),
 	}
+
+	processor.startWorkerPool(ctx, numWorkers)
+	processor.pollQueue(ctx)
 }
