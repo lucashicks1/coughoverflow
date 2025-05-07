@@ -162,8 +162,12 @@ resource "aws_ecs_task_definition" "coughoverflow_worker_relaxed" {
       networkMode = "awsvpc",
       environment = [
         {
+          name  = "NUM_WORKERS",
+          value = "20"
+        },
+        {
           name  = "DB_URL",
-          value = "postgres://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}?pool_max_conns=10"
+          value = "postgres://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}?pool_max_conns=5"
         },
         {
           name  = "AWS_SQS_URL",
@@ -217,8 +221,12 @@ resource "aws_ecs_task_definition" "coughoverflow_worker_urgent" {
       networkMode = "awsvpc",
       environment = [
         {
+          name  = "NUM_WORKERS",
+          value = "20"
+        },
+        {
           name  = "DB_URL",
-          value = "postgres://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}?pool_max_conns=10"
+          value = "postgres://${local.database_username}:${local.database_password}@${aws_db_instance.coughoverflow_database.address}:${aws_db_instance.coughoverflow_database.port}/${aws_db_instance.coughoverflow_database.db_name}?pool_max_conns=5"
         },
         {
           name  = "AWS_SQS_URL",

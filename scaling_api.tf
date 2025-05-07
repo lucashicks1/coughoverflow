@@ -2,8 +2,8 @@ resource "aws_appautoscaling_target" "coughoverflow_api" {
   service_namespace = "ecs"
   resource_id       = "service/${aws_ecs_cluster.coughoverflow.name}/${aws_ecs_service.coughoverflow_api.name}"
 
-  max_capacity       = 50
-  min_capacity       = 3
+  max_capacity       = 15
+  min_capacity       = 1
   scalable_dimension = "ecs:service:DesiredCount"
 
   depends_on = [aws_ecs_service.coughoverflow_api]
@@ -19,7 +19,7 @@ resource "aws_appautoscaling_policy" "coughoverflow-cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
-    target_value = 20
+    target_value = 10
 
     # How long to wait before scaling out again
     scale_out_cooldown = 30
