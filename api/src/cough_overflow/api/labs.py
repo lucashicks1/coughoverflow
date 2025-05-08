@@ -50,7 +50,7 @@ async def get_lab_jobs(  # noqa: PLR0913
     offset: Annotated[int, Query(ge=0)] = 0,
     patient_id: Annotated[str | None, Query(regex=r"^\d{11}$")] = None,
     status: AnalysisStatus | None = None,
-    urgent: bool | None = False,  # noqa: FBT002
+    urgent: bool | None = None,
 ) -> list[AnalysisResult]:
     """List all analysis jobs associated with a lab.
 
@@ -112,8 +112,8 @@ async def get_lab_jobs(  # noqa: PLR0913
     if status is not None:
         query = query.where(AnalysisDBModel.result == status)  # type:ignore[arg-type]
 
-    if urgent:
-        query = query.where(AnalysisDBModel.urgent is True)  # type:ignore[arg-type]
+    if urgent is not None:
+        query = query.where(AnalysisDBModel.urgent is urgent)  # type:ignore[arg-type]
 
     results = await db.execute(query)
 
