@@ -263,7 +263,7 @@ export function Epidemic_Early() {
     }
 	// Perform lab results query with parameters 20% of the time.
     if (prop > 0.8) {
-        let getURL = `${ENDPOINT}/api/v1/labs/results/QML41203?urgent=true&&status=covid`
+        let getURL = `${ENDPOINT}/api/v1/labs/results/QML41203?urgent=true&status=covid`
         let queries = http.get(getURL);
         check(queries, {
             'early epidemic GET status 200': (r) => r.status === 200,
@@ -316,11 +316,11 @@ export function Epidemic_Peak() {
     let prop = Math.random()
 	// Perform lab results query with parameters 10% of the time.
     if (prop < 0.1) {
-        let getURL = `${ENDPOINT}/api/v1/labs/results/QML41203?urgent=false&&status=covid`
+        let getURL = `${ENDPOINT}/api/v1/labs/results/QML41203?urgent=false&status=covid`
         let labResult = http.get(getURL);
         check(labResult, {
             'peak epidemic GET status 200': (r) => r.status === 200,
-            'all results have urgent=true and result=covid': (r) => { 
+            'all results have urgent=false and result=covid': (r) => { 
                 try {
                     const data = r.json();
                     return Array.isArray(data) && data.every(
@@ -369,15 +369,16 @@ export function Epidemic_Peak() {
         GetAnalysis(attempts, resultURL, "GET /analysis", "epidemic peak")
 	// Move analysis job to another lab 10% of the time.
     } else if (prop < 0.6 && taskId) {
-        let putURL = `${ENDPOINT}/api/v1/analysis?request_id=${taskId}&&lab_id=QML41203`
+        let putURL = `${ENDPOINT}/api/v1/analysis?request_id=${taskId}&lab_id=QML41203`
         let putResult = http.put(putURL);
         check(putResult, {
             'peak epidemic GET status 200': (r) => r.status === 200,
         });
         let getRequestURL = `${ENDPOINT}/api/v1/analysis?request_id=${taskId}`
+		const queryResults = http.get(getRequestURL);
         try {
-            const queryResults = getRequestURL.json();
-            check(queryResults, {
+            const queryData = queryResults.json();
+            check(queryData, {
 				'peak epidemic GET status 200': (r) => r.status === 200,
                 'Validate data': (r) => r.request_id === taskId && r.lab_id === "QML41203"
             });
