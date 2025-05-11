@@ -40,6 +40,14 @@ var engineOutputMap = map[string]string{
 	"failed":   "failed",
 }
 
+func mustEnv(key string) string {
+	val, ok := os.LookupEnv(key)
+	if !ok {
+		log.Fatalf("Missing env var: %s", key)
+	}
+	return val
+}
+
 func analyseImage(data AnalysisMsg) (string, error) {
 	log.Printf("Starting image processing for RequestId=%s", data.RequestId)
 
@@ -64,10 +72,11 @@ func analyseImage(data AnalysisMsg) (string, error) {
 
 	// Build and execute binary
 	cmd := exec.Command("./overflowengine", "--input", inputFilePath, "--output", outputFilePath)
-	_, err = cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		log.Printf("Overflow engine returned error for RequestId=%s: %v", data.RequestId, err)
+		log.Printf("Overflow engine error output: %s", string(output))
+		log.Printf("Error: %v", err)
 		return "failed", nil
 	}
 
@@ -80,11 +89,8 @@ func analyseImage(data AnalysisMsg) (string, error) {
 	result := strings.TrimSpace(string(resultBytes))
 
 	// Clean up files
-	go func() {
-		_ = os.Remove(inputFilePath)
-		_ = os.Remove(outputFilePath)
-
-	}()
+	defer os.Remove(inputFilePath)
+	defer os.Remove(outputFilePath)
 
 	// Map engine output to final status.
 	finalStatus, ok := engineOutputMap[result]
@@ -183,16 +189,18 @@ func (ap *AnalysisProcessor) pollQueue(ctx context.Context) {
 		resp, err := ap.client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String(ap.queueUrl),
 			MaxNumberOfMessages: 10,
-			WaitTimeSeconds:     5,
+			WaitTimeSeconds:     10,
 		})
 		if err != nil {
 			log.Printf("Error receiving messages from the queue: %v", err)
+			time.Sleep(2 * time.Second)
 			continue
 		}
 
 		messages := resp.Messages
 
-		if len(messages) < 1 {
+		if len(messages) == 0 {
+			log.Print("No messages, sleeping now...")
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -211,10 +219,7 @@ func main() {
 	ctx := context.TODO()
 
 	// Setting up DB
-	dbURL, exists := os.LookupEnv("DB_URL")
-	if !exists {
-		log.Fatal("The database url is not set under 'DB_URL' env variable")
-	}
+	dbURL := mustEnv("DB_URL")
 
 	dbConfig, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
@@ -233,10 +238,7 @@ func main() {
 	}
 	log.Println("Successfully connected to database")
 
-	queueURL, exists := os.LookupEnv("AWS_SQS_URL")
-	if !exists {
-		log.Fatal("The sqs url is not set under 'AWS_SQS_URL' env variable")
-	}
+	queueURL := mustEnv(("AWS_SQS_URL"))
 
 	numWorkersStr, exists := os.LookupEnv("NUM_WORKERS")
 	numWorkers := 30 // Default value
