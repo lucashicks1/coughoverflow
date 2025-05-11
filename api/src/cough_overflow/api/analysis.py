@@ -3,10 +3,12 @@
 import binascii
 from uuid import UUID, uuid4
 
-import pybase64
+import pybase64  # type: ignore[import-not-found]
 from fastapi import APIRouter, HTTPException, Request
+from loguru import logger
 
-from cough_overflow.api.deps import DbSession, EmptyBodyCheck, TaskQueuer
+from cough_overflow.api.deps import DbSession, EmptyBodyCheck
+from cough_overflow.config import CONFIG
 from cough_overflow.db import AnalysisDBModel
 from cough_overflow.enums import (
     LAB_IDENTIFIERS,
@@ -66,7 +68,6 @@ async def get_analysis_result(
 @r.post("", status_code=201)
 async def create_analysis(  # noqa: C901, PLR0912
     db: DbSession,
-    task_queuer: TaskQueuer,
     request: Request,
 ) -> InitialAnalysisResult:
     """Request analysis of a sample."""
@@ -183,8 +184,20 @@ async def create_analysis(  # noqa: C901, PLR0912
     await db.commit()
 
     # Create the job
+    sqs_client = request.app.state.sqs_client
+
     job = AnalysisJob(request_id=request_id, encoded_image=image, urgent=urgent)
-    await task_queuer.queue_task(job)
+
+    queue_url = CONFIG.aws_sqs_url_urgent if job.urgent else CONFIG.aws_sqs_url
+
+    try:
+        await sqs_client.send_message(  # type: ignore[union-attr] # fastapi lifecycle handles this
+            QueueUrl=queue_url,
+            MessageBody=job.model_dump_json(),
+        )
+    except Exception as e:
+        logger.error(f"Encountered an aws error: {e}")
+        raise
 
     return InitialAnalysisResult(
         id=request_id,
