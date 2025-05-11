@@ -40,16 +40,6 @@ var engineOutputMap = map[string]string{
 	"failed":   "failed",
 }
 
-func writeFileBuffered(path string, data []byte) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.Write(data)
-	return err
-}
-
 func analyseImage(data AnalysisMsg) (string, error) {
 	log.Printf("Starting image processing for RequestId=%s", data.RequestId)
 
@@ -60,27 +50,21 @@ func analyseImage(data AnalysisMsg) (string, error) {
 		log.Printf("Error decoding base64 image for RequestId=%s: %v", data.RequestId, err)
 		return "failed", err
 	}
-	log.Printf("Image decoded successfully for RequestId=%s", data.RequestId)
 
 	// Define file paths
 	inputFilePath := fmt.Sprintf("%s-input.jpg", data.RequestId)
 	outputFilePath := fmt.Sprintf("./%s-output.txt", data.RequestId)
 
 	// Write the input file
-	log.Printf("Writing input file: %s", inputFilePath)
 	err = os.WriteFile(inputFilePath, decodedImage, 0644)
 	if err != nil {
 		log.Printf("Error writing input file (%s): %v", inputFilePath, err)
 		return "", err
 	}
-	log.Printf("Input file written successfully: %s", inputFilePath)
 
 	// Build and execute binary
-	log.Printf("Starting overflow engine process with input=%s and output=%s", inputFilePath, outputFilePath)
 	cmd := exec.Command("./overflowengine", "--input", inputFilePath, "--output", outputFilePath)
-	output, err := cmd.CombinedOutput()
-	log.Printf("Overflow engine process completed for RequestId=%s", data.RequestId)
-	log.Printf("Engine output: %s", string(output))
+	_, err = cmd.CombinedOutput()
 
 	if err != nil {
 		log.Printf("Overflow engine returned error for RequestId=%s: %v", data.RequestId, err)
@@ -88,14 +72,12 @@ func analyseImage(data AnalysisMsg) (string, error) {
 	}
 
 	// Read the output file
-	log.Printf("Reading output file: %s", outputFilePath)
 	resultBytes, err := os.ReadFile(outputFilePath)
 	if err != nil {
 		log.Printf("Error reading output file (%s): %v", outputFilePath, err)
 		return "", err
 	}
 	result := strings.TrimSpace(string(resultBytes))
-	log.Printf("Engine returned result for RequestId=%s: %s", data.RequestId, result)
 
 	// Clean up files
 	go func() {
@@ -110,7 +92,6 @@ func analyseImage(data AnalysisMsg) (string, error) {
 		finalStatus = "failed"
 	}
 
-	log.Printf("Final status for RequestId=%s is set to: %s", data.RequestId, finalStatus)
 	return finalStatus, nil
 }
 
@@ -133,6 +114,7 @@ func (ap *AnalysisProcessor) processMessage(msg types.Message) {
 		log.Printf("Processing failed for RequestId=%s, returning early forcing reprocess", data.RequestId)
 		return
 	}
+	log.Printf("Final status for RequestId=%s is set to: %s", data.RequestId, finalStatus)
 
 	// Setup database connection
 	dbConn, err := ap.pool.Acquire(ctx)
@@ -153,8 +135,6 @@ func (ap *AnalysisProcessor) processMessage(msg types.Message) {
 		return
 	}
 
-	log.Printf("Successfully updated, now deleting message with id: %s (MessageId=%s)", data.RequestId, *msg.MessageId)
-
 	// Delete message
 	dmi := &sqs.DeleteMessageInput{
 		QueueUrl:      &ap.queueUrl,
@@ -167,7 +147,7 @@ func (ap *AnalysisProcessor) processMessage(msg types.Message) {
 	)
 
 	if err != nil {
-		log.Printf("Failed to delete message with RequestId=%s: %v", finalStatus, data.RequestId, err)
+		log.Printf("Failed to delete message with RequestId=%s: %v", data.RequestId, err)
 	}
 
 }
@@ -200,8 +180,6 @@ func (ap *AnalysisProcessor) pollQueue(ctx context.Context) {
 		default:
 		}
 
-		fmt.Print("Polling for messages....")
-
 		resp, err := ap.client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String(ap.queueUrl),
 			MaxNumberOfMessages: 10,
@@ -215,7 +193,6 @@ func (ap *AnalysisProcessor) pollQueue(ctx context.Context) {
 		messages := resp.Messages
 
 		if len(messages) < 1 {
-			log.Printf("Didn't find any messages in the queue, sleeping for a bit...")
 			time.Sleep(2 * time.Second)
 			continue
 		}
