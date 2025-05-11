@@ -18,7 +18,7 @@ resource "aws_appautoscaling_policy" "coughoverflow-urgent-cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
-    target_value = 30
+    target_value = 50
 
     # How long to wait before scaling out again
     scale_out_cooldown = 30
