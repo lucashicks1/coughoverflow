@@ -48,7 +48,7 @@ func mustEnv(key string) string {
 	return val
 }
 
-func analyseImage(data AnalysisMsg) (string, error) {
+func analyseImage(ctx context.Context, data AnalysisMsg) (string, error) {
 	log.Printf("Starting image processing for RequestId=%s", data.RequestId)
 
 	// Decode base64
@@ -70,9 +70,17 @@ func analyseImage(data AnalysisMsg) (string, error) {
 		return "", err
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	// Build and execute binary
-	cmd := exec.Command("./overflowengine", "--input", inputFilePath, "--output", outputFilePath)
+	cmd := exec.CommandContext(ctx, "./overflowengine", "--input", inputFilePath, "--output", outputFilePath)
 	output, err := cmd.CombinedOutput()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		log.Printf("Engine timed out for RequestId=%s", data.RequestId)
+		return "failed", ctx.Err()
+	}
 
 	if err != nil {
 		log.Printf("Overflow engine error output: %s", string(output))
@@ -101,9 +109,7 @@ func analyseImage(data AnalysisMsg) (string, error) {
 	return finalStatus, nil
 }
 
-func (ap *AnalysisProcessor) processMessage(msg types.Message) {
-	ctx := context.Background()
-
+func (ap *AnalysisProcessor) processMessage(ctx context.Context, msg types.Message) {
 	// Unmarshal message
 	var data AnalysisMsg
 	if err := json.Unmarshal([]byte(*msg.Body), &data); err != nil {
@@ -114,7 +120,7 @@ func (ap *AnalysisProcessor) processMessage(msg types.Message) {
 	log.Printf("Processing message with id: %s (MessageId=%s)", data.RequestId, *msg.MessageId)
 
 	// Process the image by calling the external engine.
-	finalStatus, err := analyseImage(data)
+	finalStatus, err := analyseImage(ctx, data)
 	if err != nil {
 		// If processing fails, redo processing
 		log.Printf("Processing failed for RequestId=%s, returning early forcing reprocess", data.RequestId)
@@ -165,13 +171,13 @@ func (ap *AnalysisProcessor) worker(ctx context.Context, id int) {
 			log.Printf("Worker %d exiting...", id)
 			return
 		case msg := <-ap.jobs:
-			ap.processMessage(msg)
+			ap.processMessage(ctx, msg)
 		}
 	}
 }
 
 func (ap *AnalysisProcessor) startWorkerPool(ctx context.Context, numWorkers int) {
-	for i := 0; i < numWorkers; i++ {
+	for i := range numWorkers {
 		go ap.worker(ctx, i)
 	}
 }
@@ -186,7 +192,7 @@ func (ap *AnalysisProcessor) pollQueue(ctx context.Context) {
 		default:
 		}
 
-		resp, err := ap.client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
+		resp, err := ap.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String(ap.queueUrl),
 			MaxNumberOfMessages: 10,
 			WaitTimeSeconds:     10,
@@ -215,30 +221,38 @@ func (ap *AnalysisProcessor) pollQueue(ctx context.Context) {
 	}
 }
 
-func main() {
-	ctx := context.TODO()
-
-	// Setting up DB
-	dbURL := mustEnv("DB_URL")
-
-	dbConfig, err := pgxpool.ParseConfig(dbURL)
+func getDb(context context.Context, dbUrl string) (*pgxpool.Pool, error) {
+	dbConfig, err := pgxpool.ParseConfig(dbUrl)
 	if err != nil {
-		log.Fatalf("Failed to create a config, error: %v", err)
+		return nil, err
 	}
 
-	pool, err := pgxpool.NewWithConfig(ctx, dbConfig)
+	pool, err := pgxpool.NewWithConfig(context, dbConfig)
 	if err != nil {
-		log.Fatalf("Failed to create connection pool: %v", err)
+		return nil, err
 	}
-	defer pool.Close()
 
 	// Test connection
-	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	if err := pool.Ping(context); err != nil {
+		return nil, fmt.Errorf("Failed to ping database: %w", err)
 	}
 	log.Println("Successfully connected to database")
 
-	queueURL := mustEnv(("AWS_SQS_URL"))
+	return pool, nil
+}
+
+func main() {
+	ctx := context.Background()
+
+	// Setting up DB
+	dbUrl := mustEnv("DB_URL")
+
+	pool, err := getDb(ctx, dbUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	queueURL := mustEnv("AWS_SQS_URL")
 
 	numWorkersStr, exists := os.LookupEnv("NUM_WORKERS")
 	numWorkers := 30 // Default value
@@ -251,7 +265,7 @@ func main() {
 	}
 
 	// Load the AWS config
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
